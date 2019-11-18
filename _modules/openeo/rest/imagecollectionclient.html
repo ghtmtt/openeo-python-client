@@ -1,0 +1,1257 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>openeo.rest.imagecollectionclient &#8212; openeo 0.0.1 documentation</title>
+    <link rel="stylesheet" href="../../../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '0.0.1',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+   
+  <link rel="stylesheet" href="../../../_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head>
+  <body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <h1>Source code for openeo.rest.imagecollectionclient</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">datetime</span>
+<span class="kn">import</span> <span class="nn">time</span>
+<span class="kn">import</span> <span class="nn">typing</span>
+<span class="kn">from</span> <span class="nn">typing</span> <span class="k">import</span> <span class="n">List</span><span class="p">,</span> <span class="n">Dict</span><span class="p">,</span> <span class="n">Union</span><span class="p">,</span> <span class="n">Sequence</span>
+
+<span class="kn">from</span> <span class="nn">deprecated</span> <span class="k">import</span> <span class="n">deprecated</span>
+<span class="kn">from</span> <span class="nn">shapely.geometry</span> <span class="k">import</span> <span class="n">Polygon</span><span class="p">,</span> <span class="n">MultiPolygon</span><span class="p">,</span> <span class="n">mapping</span>
+
+<span class="kn">from</span> <span class="nn">openeo.graphbuilder</span> <span class="k">import</span> <span class="n">GraphBuilder</span>
+<span class="kn">from</span> <span class="nn">openeo.imagecollection</span> <span class="k">import</span> <span class="n">ImageCollection</span><span class="p">,</span> <span class="n">CollectionMetadata</span>
+<span class="kn">from</span> <span class="nn">openeo.job</span> <span class="k">import</span> <span class="n">Job</span>
+
+<span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">typing</span><span class="p">,</span> <span class="s1">&#39;TYPE_CHECKING&#39;</span><span class="p">)</span> <span class="ow">and</span> <span class="n">typing</span><span class="o">.</span><span class="n">TYPE_CHECKING</span><span class="p">:</span>
+    <span class="c1"># Only import this for type hinting purposes. Runtime import causes circular dependency issues.</span>
+    <span class="c1"># Note: the `hasattr` check is necessary for Python versions before 3.5.2.</span>
+    <span class="kn">from</span> <span class="nn">openeo.rest.connection</span> <span class="k">import</span> <span class="n">Connection</span>
+
+
+<div class="viewcode-block" id="ImageCollectionClient"><a class="viewcode-back" href="../../../index.html#openeo.rest.imagecollectionclient.ImageCollectionClient">[docs]</a><span class="k">class</span> <span class="nc">ImageCollectionClient</span><span class="p">(</span><span class="n">ImageCollection</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Class representing an Image Collection. (In the API as &#39;imagery&#39;)</span>
+<span class="sd">        Supports 0.4.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">node_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">builder</span><span class="p">:</span> <span class="n">GraphBuilder</span><span class="p">,</span> <span class="n">session</span><span class="p">:</span> <span class="s1">&#39;Connection&#39;</span><span class="p">,</span> <span class="n">metadata</span><span class="p">:</span> <span class="n">CollectionMetadata</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">metadata</span><span class="o">=</span><span class="n">metadata</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">node_id</span> <span class="o">=</span> <span class="n">node_id</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">builder</span><span class="o">=</span> <span class="n">builder</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">session</span> <span class="o">=</span> <span class="n">session</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">graph</span> <span class="o">=</span> <span class="n">builder</span><span class="o">.</span><span class="n">processes</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">metadata</span> <span class="o">=</span> <span class="n">metadata</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">_api_version</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">capabilities</span><span class="p">()</span><span class="o">.</span><span class="n">api_version_check</span>
+
+<div class="viewcode-block" id="ImageCollectionClient.load_collection"><a class="viewcode-back" href="../../../index.html#openeo.rest.imagecollectionclient.ImageCollectionClient.load_collection">[docs]</a>    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">load_collection</span><span class="p">(</span>
+            <span class="bp">cls</span><span class="p">,</span> <span class="n">collection_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">session</span><span class="p">:</span> <span class="s1">&#39;Connection&#39;</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="n">spatial_extent</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span> <span class="kc">None</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="n">temporal_extent</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="kc">None</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="n">bands</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="kc">None</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="n">fetch_metadata</span><span class="o">=</span><span class="kc">True</span>
+    <span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Create a new Image Collection/Raster Data cube.</span>
+
+<span class="sd">        :param collection_id: A collection id, should exist in the backend.</span>
+<span class="sd">        :param session: The session to use to connect with the backend.</span>
+<span class="sd">        :param spatial_extent: limit data to specified bounding box or polygons</span>
+<span class="sd">        :param temporal_extent: limit data to specified temporal interval</span>
+<span class="sd">        :param bands: only add the specified bands</span>
+<span class="sd">        :return:</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># TODO: rename function to load_collection for better similarity with corresponding process id?</span>
+        <span class="n">builder</span> <span class="o">=</span> <span class="n">GraphBuilder</span><span class="p">()</span>
+        <span class="n">process_id</span> <span class="o">=</span> <span class="s1">&#39;load_collection&#39;</span>
+        <span class="n">arguments</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;id&#39;</span><span class="p">:</span> <span class="n">collection_id</span><span class="p">,</span>
+            <span class="s1">&#39;spatial_extent&#39;</span><span class="p">:</span> <span class="n">spatial_extent</span><span class="p">,</span>
+            <span class="s1">&#39;temporal_extent&#39;</span><span class="p">:</span> <span class="n">temporal_extent</span><span class="p">,</span>
+        <span class="p">}</span>
+        <span class="k">if</span> <span class="n">bands</span><span class="p">:</span>
+            <span class="n">arguments</span><span class="p">[</span><span class="s1">&#39;bands&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">bands</span>
+        <span class="n">node_id</span> <span class="o">=</span> <span class="n">builder</span><span class="o">.</span><span class="n">process</span><span class="p">(</span><span class="n">process_id</span><span class="p">,</span> <span class="n">arguments</span><span class="p">)</span>
+        <span class="n">metadata</span> <span class="o">=</span> <span class="n">session</span><span class="o">.</span><span class="n">collection_metadata</span><span class="p">(</span><span class="n">collection_id</span><span class="p">)</span> <span class="k">if</span> <span class="n">fetch_metadata</span> <span class="k">else</span> <span class="kc">None</span>
+        <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span><span class="n">node_id</span><span class="p">,</span> <span class="n">builder</span><span class="p">,</span> <span class="n">session</span><span class="p">,</span> <span class="n">metadata</span><span class="o">=</span><span class="n">metadata</span><span class="p">)</span></div>
+
+    <span class="nd">@classmethod</span>
+    <span class="nd">@deprecated</span><span class="p">(</span><span class="s2">&quot;use load_collection instead&quot;</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">create_collection</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">cls</span><span class="o">.</span><span class="n">load_collection</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+<div class="viewcode-block" id="ImageCollectionClient.load_disk_collection"><a class="viewcode-back" href="../../../index.html#openeo.rest.imagecollectionclient.ImageCollectionClient.load_disk_collection">[docs]</a>    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">load_disk_collection</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">session</span><span class="p">:</span> <span class="s1">&#39;Connection&#39;</span><span class="p">,</span> <span class="n">file_format</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">glob_pattern</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="o">**</span><span class="n">options</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s1">&#39;ImageCollection&#39;</span><span class="p">:</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Loads image data from disk as an ImageCollection.</span>
+
+<span class="sd">        :param session: The session to use to connect with the backend.</span>
+<span class="sd">        :param file_format: the file format, e.g. &#39;GTiff&#39;</span>
+<span class="sd">        :param glob_pattern: a glob pattern that matches the files to load from disk</span>
+<span class="sd">        :param options: options specific to the file format</span>
+<span class="sd">        :return: the data as an ImageCollection</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">builder</span> <span class="o">=</span> <span class="n">GraphBuilder</span><span class="p">()</span>
+
+        <span class="n">process_id</span> <span class="o">=</span> <span class="s1">&#39;load_disk_data&#39;</span>
+        <span class="n">arguments</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;format&#39;</span><span class="p">:</span> <span class="n">file_format</span><span class="p">,</span>
+            <span class="s1">&#39;glob_pattern&#39;</span><span class="p">:</span> <span class="n">glob_pattern</span><span class="p">,</span>
+            <span class="s1">&#39;options&#39;</span><span class="p">:</span> <span class="n">options</span>
+        <span class="p">}</span>
+
+        <span class="n">node_id</span> <span class="o">=</span> <span class="n">builder</span><span class="o">.</span><span class="n">process</span><span class="p">(</span><span class="n">process_id</span><span class="p">,</span> <span class="n">arguments</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span><span class="n">node_id</span><span class="p">,</span> <span class="n">builder</span><span class="p">,</span> <span class="n">session</span><span class="p">,</span> <span class="n">metadata</span><span class="o">=</span><span class="p">{})</span></div>
+
+    <span class="k">def</span> <span class="nf">_filter_temporal</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">start</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">end</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s1">&#39;ImageCollection&#39;</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">graph_add_process</span><span class="p">(</span>
+            <span class="n">process_id</span><span class="o">=</span><span class="s1">&#39;filter_temporal&#39;</span><span class="p">,</span>
+            <span class="n">args</span><span class="o">=</span><span class="p">{</span>
+                <span class="s1">&#39;data&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;from_node&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">node_id</span><span class="p">},</span>
+                <span class="s1">&#39;extent&#39;</span><span class="p">:</span> <span class="p">[</span><span class="n">start</span><span class="p">,</span> <span class="n">end</span><span class="p">]</span>
+            <span class="p">}</span>
+        <span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">filter_bbox</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">west</span><span class="p">,</span> <span class="n">east</span><span class="p">,</span> <span class="n">north</span><span class="p">,</span> <span class="n">south</span><span class="p">,</span> <span class="n">crs</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">base</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">height</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s1">&#39;ImageCollection&#39;</span><span class="p">:</span>
+        <span class="n">extent</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;west&#39;</span><span class="p">:</span> <span class="n">west</span><span class="p">,</span> <span class="s1">&#39;east&#39;</span><span class="p">:</span> <span class="n">east</span><span class="p">,</span> <span class="s1">&#39;north&#39;</span><span class="p">:</span> <span class="n">north</span><span class="p">,</span> <span class="s1">&#39;south&#39;</span><span class="p">:</span> <span class="n">south</span><span class="p">,</span>
+            <span class="s1">&#39;crs&#39;</span><span class="p">:</span> <span class="n">crs</span><span class="p">,</span>
+        <span class="p">}</span>
+        <span class="k">if</span> <span class="n">base</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">height</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">extent</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">base</span><span class="o">=</span><span class="n">base</span><span class="p">,</span> <span class="n">height</span><span class="o">=</span><span class="n">height</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">graph_add_process</span><span class="p">(</span>
+            <span class="n">process_id</span><span class="o">=</span><span class="s1">&#39;filter_bbox&#39;</span><span class="p">,</span>
+            <span class="n">args</span><span class="o">=</span><span class="p">{</span>
+                <span class="s1">&#39;data&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;from_node&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">node_id</span><span class="p">},</span>
+                <span class="s1">&#39;extent&#39;</span><span class="p">:</span> <span class="n">extent</span>
+            <span class="p">}</span>
+        <span class="p">)</span>
+
+<div class="viewcode-block" id="ImageCollectionClient.filter_bands"><a class="viewcode-back" href="../../../index.html#openeo.rest.imagecollectionclient.ImageCollectionClient.filter_bands">[docs]</a>    <span class="k">def</span> <span class="nf">filter_bands</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">bands</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">Union</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">]])</span> <span class="o">-&gt;</span> <span class="n">ImageCollection</span><span class="p">:</span>
+        <span class="sd">&quot;&quot;&quot;Filter the imagery by the given bands</span>
+<span class="sd">            :param bands: List of band names or single band name as a string.</span>
+<span class="sd">            :return An ImageCollection instance</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">graph_add_process</span><span class="p">(</span>
+            <span class="n">process_id</span><span class="o">=</span><span class="s1">&#39;filter_bands&#39;</span><span class="p">,</span>
+            <span class="n">args</span><span class="o">=</span><span class="p">{</span>
+                <span class="s1">&#39;data&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;from_node&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">node_id</span><span class="p">},</span>
+                <span class="s1">&#39;bands&#39;</span><span class="p">:</span> <span class="n">bands</span>
+            <span class="p">}</span>
+        <span class="p">)</span></div>
+
+    <span class="nd">@deprecated</span><span class="p">(</span><span class="s2">&quot;use `filter_bands()` instead&quot;</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">band_filter</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">bands</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ImageCollection</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">filter_bands</span><span class="p">(</span><span class="n">bands</span><span class="p">)</span>
+
+<div class="viewcode-block" id="ImageCollectionClient.band"><a class="viewcode-back" href="../../../index.html#openeo.rest.imagecollectionclient.ImageCollectionClient.band">[docs]</a>    <span class="k">def</span> <span class="nf">band</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">band</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="s1">&#39;ImageCollection&#39;</span><span class="p">:</span>
+        <span class="sd">&quot;&quot;&quot;Filter the imagery by the given bands</span>
+<span class="sd">            :param band: band name, band common name or band index.</span>
+<span class="sd">            :return An ImageCollection instance</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">process_id</span> <span class="o">=</span> <span class="s1">&#39;reduce&#39;</span>
+        <span class="n">band_index</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">metadata</span><span class="o">.</span><span class="n">get_band_index</span><span class="p">(</span><span class="n">band</span><span class="p">)</span>
+
+        <span class="n">args</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;data&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;from_node&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">node_id</span><span class="p">},</span>
+            <span class="s1">&#39;dimension&#39;</span><span class="p">:</span> <span class="s1">&#39;spectral_bands&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;reducer&#39;</span><span class="p">:</span> <span class="p">{</span>
+                <span class="s1">&#39;callback&#39;</span><span class="p">:</span> <span class="p">{</span>
+                    <span class="s1">&#39;r1&#39;</span><span class="p">:</span> <span class="p">{</span>
+                        <span class="s1">&#39;arguments&#39;</span><span class="p">:</span> <span class="p">{</span>
+                            <span class="s1">&#39;data&#39;</span><span class="p">:</span> <span class="p">{</span>
+                                <span class="s1">&#39;from_argument&#39;</span><span class="p">:</span> <span class="s1">&#39;data&#39;</span>
+                            <span class="p">},</span>
+                            <span class="s1">&#39;index&#39;</span><span class="p">:</span> <span class="n">band_index</span>
+                        <span class="p">},</span>
+                        <span class="s1">&#39;process_id&#39;</span><span class="p">:</span> <span class="s1">&#39;array_element&#39;</span><span class="p">,</span>
+                        <span class="s1">&#39;result&#39;</span><span class="p">:</span> <span class="kc">True</span>
+                    <span class="p">}</span>
+                <span class="p">}</span>
+            <span class="p">}</span>
+        <span class="p">}</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">graph_add_process</span><span class="p">(</span><span class="n">process_id</span><span class="p">,</span> <span class="n">args</span><span class="p">)</span></div>
+
+    <span class="k">def</span> <span class="nf">resample_spatial</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">resolution</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="n">Union</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Union</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">]]],</span>
+                         <span class="n">projection</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">method</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;near&#39;</span><span class="p">,</span> <span class="n">align</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;lower-left&#39;</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">graph_add_process</span><span class="p">(</span><span class="s1">&#39;resample_spatial&#39;</span><span class="p">,</span> <span class="p">{</span>
+            <span class="s1">&#39;data&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;from_node&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">node_id</span><span class="p">},</span>
+            <span class="s1">&#39;resolution&#39;</span><span class="p">:</span> <span class="n">resolution</span><span class="p">,</span>
+            <span class="s1">&#39;projection&#39;</span><span class="p">:</span> <span class="n">projection</span><span class="p">,</span>
+            <span class="s1">&#39;method&#39;</span><span class="p">:</span> <span class="n">method</span><span class="p">,</span>
+            <span class="s1">&#39;align&#39;</span><span class="p">:</span> <span class="n">align</span>
+        <span class="p">})</span>
+
+<div class="viewcode-block" id="ImageCollectionClient.subtract"><a class="viewcode-back" href="../../../index.html#openeo.rest.imagecollectionclient.ImageCollectionClient.subtract">[docs]</a>    <span class="k">def</span> <span class="nf">subtract</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">:</span><span class="n">Union</span><span class="p">[</span><span class="n">ImageCollection</span><span class="p">,</span><span class="n">Union</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span><span class="nb">float</span><span class="p">]]):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Subtract other from this datacube, so the result is: this - other</span>
+<span class="sd">        The number of bands in both data cubes has to be the same.</span>
+
+<span class="sd">        :param other:</span>
+<span class="sd">        :return ImageCollection: this - other</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">operator</span> <span class="o">=</span> <span class="s2">&quot;subtract&quot;</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">other</span><span class="p">,</span> <span class="nb">int</span><span class="p">)</span> <span class="ow">or</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">other</span><span class="p">,</span> <span class="nb">float</span><span class="p">):</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_reduce_bands_binary_const</span><span class="p">(</span><span class="n">operator</span><span class="p">,</span> <span class="n">other</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">other</span><span class="p">,</span> <span class="n">ImageCollection</span><span class="p">):</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_reduce_bands_binary</span><span class="p">(</span><span class="n">operator</span><span class="p">,</span> <span class="n">other</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Unsupported right-hand operand: &quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">other</span><span class="p">))</span></div>
+
+<div class="viewcode-block" id="ImageCollectionClient.divide"><a class="viewcode-back" href="../../../index.html#openeo.rest.imagecollectionclient.ImageCollectionClient.divide">[docs]</a>    <span class="k">def</span> <span class="nf">divide</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">:</span><span class="n">Union</span><span class="p">[</span><span class="n">ImageCollection</span><span class="p">,</span><span class="n">Union</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span><span class="nb">float</span><span class="p">]]):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Subtraction other from this datacube, so the result is: this - other</span>
+<span class="sd">        The number of bands in both data cubes has to be the same.</span>
+
+<span class="sd">        :param other:</span>
+<span class="sd">        :return ImageCollection: this - other</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">operator</span> <span class="o">=</span> <span class="s2">&quot;divide&quot;</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">other</span><span class="p">,</span> <span class="nb">int</span><span class="p">)</span> <span class="ow">or</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">other</span><span class="p">,</span> <span class="nb">float</span><span class="p">):</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_reduce_bands_binary_const</span><span class="p">(</span><span class="n">operator</span><span class="p">,</span> <span class="n">other</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">other</span><span class="p">,</span> <span class="n">ImageCollection</span><span class="p">):</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_reduce_bands_binary</span><span class="p">(</span><span class="n">operator</span><span class="p">,</span> <span class="n">other</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Unsupported right-hand operand: &quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">other</span><span class="p">))</span></div>
+
+<div class="viewcode-block" id="ImageCollectionClient.product"><a class="viewcode-back" href="../../../index.html#openeo.rest.imagecollectionclient.ImageCollectionClient.product">[docs]</a>    <span class="k">def</span> <span class="nf">product</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">:</span><span class="n">Union</span><span class="p">[</span><span class="n">ImageCollection</span><span class="p">,</span><span class="n">Union</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span><span class="nb">float</span><span class="p">]]):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Multiply other with this datacube, so the result is: this * other</span>
+<span class="sd">        The number of bands in both data cubes has to be the same.</span>
+
+<span class="sd">        :param other:</span>
+<span class="sd">        :return ImageCollection: this - other</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">operator</span> <span class="o">=</span> <span class="s2">&quot;product&quot;</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">other</span><span class="p">,</span> <span class="nb">int</span><span class="p">)</span> <span class="ow">or</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">other</span><span class="p">,</span> <span class="nb">float</span><span class="p">):</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_reduce_bands_binary_const</span><span class="p">(</span><span class="n">operator</span><span class="p">,</span> <span class="n">other</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">other</span><span class="p">,</span> <span class="n">ImageCollection</span><span class="p">):</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_reduce_bands_binary</span><span class="p">(</span><span class="n">operator</span><span class="p">,</span> <span class="n">other</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Unsupported right-hand operand: &quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">other</span><span class="p">))</span></div>
+
+<div class="viewcode-block" id="ImageCollectionClient.logical_or"><a class="viewcode-back" href="../../../index.html#openeo.rest.imagecollectionclient.ImageCollectionClient.logical_or">[docs]</a>    <span class="k">def</span> <span class="nf">logical_or</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">:</span> <span class="n">ImageCollection</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Apply element-wise logical `or` operation</span>
+<span class="sd">        :param other:</span>
+<span class="sd">        :return ImageCollection: logical_or(this, other)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_reduce_bands_binary</span><span class="p">(</span><span class="n">operator</span><span class="o">=</span><span class="s1">&#39;or&#39;</span><span class="p">,</span> <span class="n">other</span><span class="o">=</span><span class="n">other</span><span class="p">,</span><span class="n">arg_name</span><span class="o">=</span><span class="s1">&#39;expressions&#39;</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="ImageCollectionClient.logical_and"><a class="viewcode-back" href="../../../index.html#openeo.rest.imagecollectionclient.ImageCollectionClient.logical_and">[docs]</a>    <span class="k">def</span> <span class="nf">logical_and</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">:</span> <span class="n">ImageCollection</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Apply element-wise logical `and` operation</span>
+<span class="sd">        :param other:</span>
+<span class="sd">        :return ImageCollection: logical_and(this, other)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_reduce_bands_binary</span><span class="p">(</span><span class="n">operator</span><span class="o">=</span><span class="s1">&#39;and&#39;</span><span class="p">,</span> <span class="n">other</span><span class="o">=</span><span class="n">other</span><span class="p">,</span><span class="n">arg_name</span><span class="o">=</span><span class="s1">&#39;expressions&#39;</span><span class="p">)</span></div>
+
+    <span class="k">def</span> <span class="nf">__invert__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+
+<span class="sd">        :return:</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">operator</span> <span class="o">=</span> <span class="s1">&#39;not&#39;</span>
+        <span class="n">my_builder</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_band_graph_builder</span><span class="p">()</span>
+        <span class="n">new_builder</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="n">extend_previous_callback_graph</span> <span class="o">=</span> <span class="n">my_builder</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+        <span class="c1"># TODO: why does these `add_process` calls use &quot;expression&quot; instead of &quot;data&quot; like the other cases?</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">extend_previous_callback_graph</span><span class="p">:</span>
+            <span class="n">new_builder</span> <span class="o">=</span> <span class="n">GraphBuilder</span><span class="p">()</span>
+            <span class="c1"># TODO merge both process graphs?</span>
+            <span class="n">new_builder</span><span class="o">.</span><span class="n">add_process</span><span class="p">(</span><span class="n">operator</span><span class="p">,</span> <span class="n">expression</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;from_argument&#39;</span><span class="p">:</span> <span class="s1">&#39;data&#39;</span><span class="p">},</span> <span class="n">result</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">current_result</span> <span class="o">=</span> <span class="n">my_builder</span><span class="o">.</span><span class="n">find_result_node_id</span><span class="p">()</span>
+            <span class="n">new_builder</span> <span class="o">=</span> <span class="n">my_builder</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+            <span class="n">new_builder</span><span class="o">.</span><span class="n">processes</span><span class="p">[</span><span class="n">current_result</span><span class="p">][</span><span class="s1">&#39;result&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>
+            <span class="n">new_builder</span><span class="o">.</span><span class="n">add_process</span><span class="p">(</span><span class="n">operator</span><span class="p">,</span> <span class="n">expression</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;from_node&#39;</span><span class="p">:</span> <span class="n">current_result</span><span class="p">},</span>  <span class="n">result</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_create_reduced_collection</span><span class="p">(</span><span class="n">new_builder</span><span class="p">,</span> <span class="n">extend_previous_callback_graph</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__ne__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="n">ImageCollection</span><span class="p">,</span> <span class="n">Union</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">]]):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="fm">__eq__</span><span class="p">(</span><span class="n">other</span><span class="p">)</span><span class="o">.</span><span class="fm">__invert__</span><span class="p">()</span>
+    
+    
+
+    <span class="k">def</span> <span class="nf">__eq__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">:</span><span class="n">Union</span><span class="p">[</span><span class="n">ImageCollection</span><span class="p">,</span><span class="n">Union</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span><span class="nb">float</span><span class="p">]]):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Pixelwise comparison of this data cube with another cube or constant.</span>
+
+<span class="sd">        :param other: Another data cube, or a constant</span>
+<span class="sd">        :return:</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_reduce_bands_binary_xy</span><span class="p">(</span><span class="s1">&#39;eq&#39;</span><span class="p">,</span><span class="n">other</span><span class="p">)</span>
+    
+    <span class="k">def</span> <span class="nf">__gt__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">:</span><span class="n">Union</span><span class="p">[</span><span class="n">ImageCollection</span><span class="p">,</span><span class="n">Union</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span><span class="nb">float</span><span class="p">]]):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Pairwise comparison of the bands in this data cube with the bands in the &#39;other&#39; data cube.</span>
+<span class="sd">        The number of bands in both data cubes has to be the same.</span>
+
+<span class="sd">        :param other:</span>
+<span class="sd">        :return ImageCollection: this + other</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_reduce_bands_binary_xy</span><span class="p">(</span><span class="s1">&#39;gt&#39;</span><span class="p">,</span><span class="n">other</span><span class="p">)</span>
+            
+    <span class="k">def</span> <span class="nf">__lt__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">:</span><span class="n">Union</span><span class="p">[</span><span class="n">ImageCollection</span><span class="p">,</span><span class="n">Union</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span><span class="nb">float</span><span class="p">]]):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Pairwise comparison of the bands in this data cube with the bands in the &#39;other&#39; data cube.</span>
+<span class="sd">        The number of bands in both data cubes has to be the same.</span>
+
+<span class="sd">        :param other:</span>
+<span class="sd">        :return ImageCollection: this + other</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_reduce_bands_binary_xy</span><span class="p">(</span><span class="s1">&#39;lt&#39;</span><span class="p">,</span><span class="n">other</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_create_reduced_collection</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">callback_graph_builder</span><span class="p">,</span> <span class="n">extend_previous_callback_graph</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">extend_previous_callback_graph</span><span class="p">:</span>
+            <span class="c1"># there was no previous reduce step</span>
+            <span class="n">args</span> <span class="o">=</span> <span class="p">{</span>
+                <span class="s1">&#39;data&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;from_node&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">node_id</span><span class="p">},</span>
+                <span class="s1">&#39;dimension&#39;</span><span class="p">:</span> <span class="s1">&#39;spectral_bands&#39;</span><span class="p">,</span>
+                <span class="s1">&#39;reducer&#39;</span><span class="p">:</span> <span class="p">{</span>
+                    <span class="s1">&#39;callback&#39;</span><span class="p">:</span> <span class="n">callback_graph_builder</span><span class="o">.</span><span class="n">processes</span>
+                <span class="p">}</span>
+            <span class="p">}</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">graph_add_process</span><span class="p">(</span><span class="s2">&quot;reduce&quot;</span><span class="p">,</span> <span class="n">args</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">process_graph_copy</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">builder</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+            <span class="n">process_graph_copy</span><span class="o">.</span><span class="n">processes</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">node_id</span><span class="p">][</span><span class="s1">&#39;arguments&#39;</span><span class="p">][</span><span class="s1">&#39;reducer&#39;</span><span class="p">][</span><span class="s1">&#39;callback&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">callback_graph_builder</span><span class="o">.</span><span class="n">processes</span>
+
+            <span class="c1"># now current_node should be a reduce node, let&#39;s modify it</span>
+            <span class="c1"># TODO: set metadata of reduced cube?</span>
+            <span class="k">return</span> <span class="n">ImageCollectionClient</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">node_id</span><span class="p">,</span> <span class="n">process_graph_copy</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">session</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__truediv__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">other</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">divide</span><span class="p">(</span><span class="n">other</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__sub__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">subtract</span><span class="p">(</span><span class="n">other</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__radd__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">other</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__add__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">other</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__mul__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">product</span><span class="p">(</span><span class="n">other</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__rmul__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">product</span><span class="p">(</span><span class="n">other</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__or__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">logical_or</span><span class="p">(</span><span class="n">other</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__and__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+        <span class="k">return</span>  <span class="bp">self</span><span class="o">.</span><span class="n">logical_and</span><span class="p">(</span><span class="n">other</span><span class="p">)</span>
+
+<div class="viewcode-block" id="ImageCollectionClient.add"><a class="viewcode-back" href="../../../index.html#openeo.rest.imagecollectionclient.ImageCollectionClient.add">[docs]</a>    <span class="k">def</span> <span class="nf">add</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">:</span><span class="n">Union</span><span class="p">[</span><span class="n">ImageCollection</span><span class="p">,</span><span class="n">Union</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span><span class="nb">float</span><span class="p">]]):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Pairwise addition of the bands in this data cube with the bands in the &#39;other&#39; data cube.</span>
+<span class="sd">        The number of bands in both data cubes has to be the same.</span>
+
+<span class="sd">        :param other:</span>
+<span class="sd">        :return ImageCollection: this + other</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">operator</span> <span class="o">=</span> <span class="s2">&quot;sum&quot;</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">other</span><span class="p">,</span> <span class="nb">int</span><span class="p">)</span> <span class="ow">or</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">other</span><span class="p">,</span> <span class="nb">float</span><span class="p">):</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_reduce_bands_binary_const</span><span class="p">(</span><span class="n">operator</span><span class="p">,</span> <span class="n">other</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">other</span><span class="p">,</span> <span class="n">ImageCollection</span><span class="p">):</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_reduce_bands_binary</span><span class="p">(</span><span class="n">operator</span><span class="p">,</span> <span class="n">other</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Unsupported right-hand operand: &quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">other</span><span class="p">))</span></div>
+
+    <span class="k">def</span> <span class="nf">_reduce_bands_binary</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">operator</span><span class="p">,</span> <span class="n">other</span><span class="p">:</span> <span class="s1">&#39;ImageCollectionClient&#39;</span><span class="p">,</span><span class="n">arg_name</span><span class="o">=</span><span class="s1">&#39;data&#39;</span><span class="p">):</span>
+        <span class="c1"># first we create the callback</span>
+        <span class="n">fallback_node</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;from_argument&#39;</span><span class="p">:</span> <span class="s1">&#39;data&#39;</span><span class="p">}</span>
+        <span class="n">my_builder</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_band_graph_builder</span><span class="p">()</span>
+        <span class="n">other_builder</span> <span class="o">=</span> <span class="n">other</span><span class="o">.</span><span class="n">_get_band_graph_builder</span><span class="p">()</span>
+        <span class="n">merged</span> <span class="o">=</span> <span class="n">GraphBuilder</span><span class="o">.</span><span class="n">combine</span><span class="p">(</span><span class="n">operator</span><span class="o">=</span><span class="n">operator</span><span class="p">,</span>
+                                      <span class="n">first</span><span class="o">=</span><span class="n">my_builder</span> <span class="ow">or</span> <span class="n">fallback_node</span><span class="p">,</span>
+                                      <span class="n">second</span><span class="o">=</span><span class="n">other_builder</span> <span class="ow">or</span> <span class="n">fallback_node</span><span class="p">,</span> <span class="n">arg_name</span><span class="o">=</span><span class="n">arg_name</span><span class="p">)</span>
+        <span class="c1"># callback is ready, now we need to properly set up the reduce process that will invoke it</span>
+        <span class="k">if</span> <span class="n">my_builder</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">other_builder</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># there was no previous reduce step</span>
+            <span class="n">args</span> <span class="o">=</span> <span class="p">{</span>
+                <span class="s1">&#39;data&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;from_node&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">node_id</span><span class="p">},</span>
+                <span class="s1">&#39;process&#39;</span><span class="p">:</span> <span class="p">{</span>
+                    <span class="s1">&#39;callback&#39;</span><span class="p">:</span> <span class="n">merged</span><span class="o">.</span><span class="n">processes</span>
+                <span class="p">}</span>
+            <span class="p">}</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">graph_add_process</span><span class="p">(</span><span class="s2">&quot;reduce&quot;</span><span class="p">,</span> <span class="n">args</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">node_id</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">node_id</span>
+            <span class="n">reducing_graph</span> <span class="o">=</span> <span class="bp">self</span>
+            <span class="k">if</span> <span class="n">reducing_graph</span><span class="o">.</span><span class="n">graph</span><span class="p">[</span><span class="n">node_id</span><span class="p">][</span><span class="s2">&quot;process_id&quot;</span><span class="p">]</span> <span class="o">!=</span> <span class="s2">&quot;reduce&quot;</span><span class="p">:</span>
+                <span class="n">node_id</span> <span class="o">=</span> <span class="n">other</span><span class="o">.</span><span class="n">node_id</span>
+                <span class="n">reducing_graph</span> <span class="o">=</span> <span class="n">other</span>
+            <span class="n">new_builder</span> <span class="o">=</span> <span class="n">reducing_graph</span><span class="o">.</span><span class="n">builder</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+            <span class="n">new_builder</span><span class="o">.</span><span class="n">processes</span><span class="p">[</span><span class="n">node_id</span><span class="p">][</span><span class="s1">&#39;arguments&#39;</span><span class="p">][</span><span class="s1">&#39;reducer&#39;</span><span class="p">][</span><span class="s1">&#39;callback&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">merged</span><span class="o">.</span><span class="n">processes</span>
+            <span class="c1"># now current_node should be a reduce node, let&#39;s modify it</span>
+            <span class="c1"># TODO: set metadata of reduced cube?</span>
+            <span class="k">return</span> <span class="n">ImageCollectionClient</span><span class="p">(</span><span class="n">node_id</span><span class="p">,</span> <span class="n">new_builder</span><span class="p">,</span> <span class="n">reducing_graph</span><span class="o">.</span><span class="n">session</span><span class="p">)</span>
+        
+    <span class="k">def</span> <span class="nf">_reduce_bands_binary_xy</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">operator</span><span class="p">,</span><span class="n">other</span><span class="p">:</span><span class="n">Union</span><span class="p">[</span><span class="n">ImageCollection</span><span class="p">,</span><span class="n">Union</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span><span class="nb">float</span><span class="p">]]):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Pixelwise comparison of this data cube with another cube or constant.</span>
+
+<span class="sd">        :param other: Another data cube, or a constant</span>
+<span class="sd">        :return:</span>
+<span class="sd">        &quot;&quot;&quot;</span>        
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">other</span><span class="p">,</span> <span class="nb">int</span><span class="p">)</span> <span class="ow">or</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">other</span><span class="p">,</span> <span class="nb">float</span><span class="p">):</span>
+            <span class="n">my_builder</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_band_graph_builder</span><span class="p">()</span>
+            <span class="n">new_builder</span> <span class="o">=</span> <span class="kc">None</span>
+            <span class="n">extend_previous_callback_graph</span> <span class="o">=</span> <span class="n">my_builder</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">extend_previous_callback_graph</span><span class="p">:</span>
+                <span class="n">new_builder</span> <span class="o">=</span> <span class="n">GraphBuilder</span><span class="p">()</span>
+                <span class="c1"># TODO merge both process graphs?</span>
+                <span class="n">new_builder</span><span class="o">.</span><span class="n">add_process</span><span class="p">(</span><span class="n">operator</span><span class="p">,</span> <span class="n">x</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;from_argument&#39;</span><span class="p">:</span> <span class="s1">&#39;data&#39;</span><span class="p">},</span> <span class="n">y</span> <span class="o">=</span> <span class="n">other</span><span class="p">,</span> <span class="n">result</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">current_result</span> <span class="o">=</span> <span class="n">my_builder</span><span class="o">.</span><span class="n">find_result_node_id</span><span class="p">()</span>
+                <span class="n">new_builder</span> <span class="o">=</span> <span class="n">my_builder</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+                <span class="n">new_builder</span><span class="o">.</span><span class="n">processes</span><span class="p">[</span><span class="n">current_result</span><span class="p">][</span><span class="s1">&#39;result&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>
+                <span class="n">new_builder</span><span class="o">.</span><span class="n">add_process</span><span class="p">(</span><span class="n">operator</span><span class="p">,</span> <span class="n">x</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;from_node&#39;</span><span class="p">:</span> <span class="n">current_result</span><span class="p">},</span> <span class="n">y</span> <span class="o">=</span> <span class="n">other</span><span class="p">,</span> <span class="n">result</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_create_reduced_collection</span><span class="p">(</span><span class="n">new_builder</span><span class="p">,</span> <span class="n">extend_previous_callback_graph</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">other</span><span class="p">,</span> <span class="n">ImageCollection</span><span class="p">):</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_reduce_bands_binary</span><span class="p">(</span><span class="n">operator</span><span class="p">,</span> <span class="n">other</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Unsupported right-hand operand: &quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">other</span><span class="p">))</span>
+
+    <span class="k">def</span> <span class="nf">_reduce_bands_binary_const</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">operator</span><span class="p">,</span> <span class="n">other</span><span class="p">:</span><span class="n">Union</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span><span class="nb">float</span><span class="p">]):</span>
+        <span class="n">my_builder</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_band_graph_builder</span><span class="p">()</span>
+        <span class="n">new_builder</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="n">extend_previous_callback_graph</span> <span class="o">=</span> <span class="n">my_builder</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">extend_previous_callback_graph</span><span class="p">:</span>
+            <span class="n">new_builder</span> <span class="o">=</span> <span class="n">GraphBuilder</span><span class="p">()</span>
+            <span class="c1"># TODO merge both process graphs?</span>
+            <span class="n">new_builder</span><span class="o">.</span><span class="n">add_process</span><span class="p">(</span><span class="n">operator</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="p">[{</span><span class="s1">&#39;from_argument&#39;</span><span class="p">:</span> <span class="s1">&#39;data&#39;</span><span class="p">},</span> <span class="n">other</span><span class="p">],</span> <span class="n">result</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">current_result</span> <span class="o">=</span> <span class="n">my_builder</span><span class="o">.</span><span class="n">find_result_node_id</span><span class="p">()</span>
+            <span class="n">new_builder</span> <span class="o">=</span> <span class="n">my_builder</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+            <span class="n">new_builder</span><span class="o">.</span><span class="n">processes</span><span class="p">[</span><span class="n">current_result</span><span class="p">][</span><span class="s1">&#39;result&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>
+            <span class="n">new_builder</span><span class="o">.</span><span class="n">add_process</span><span class="p">(</span><span class="n">operator</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="p">[{</span><span class="s1">&#39;from_node&#39;</span><span class="p">:</span> <span class="n">current_result</span><span class="p">},</span> <span class="n">other</span><span class="p">],</span> <span class="n">result</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_create_reduced_collection</span><span class="p">(</span><span class="n">new_builder</span><span class="p">,</span><span class="n">extend_previous_callback_graph</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_get_band_graph_builder</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">current_node</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">graph</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">node_id</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">current_node</span><span class="p">[</span><span class="s2">&quot;process_id&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="s2">&quot;reduce&quot;</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">current_node</span><span class="p">[</span><span class="s2">&quot;arguments&quot;</span><span class="p">][</span><span class="s2">&quot;dimension&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="s2">&quot;spectral_bands&quot;</span><span class="p">:</span>
+                <span class="n">callback_graph</span> <span class="o">=</span> <span class="n">current_node</span><span class="p">[</span><span class="s2">&quot;arguments&quot;</span><span class="p">][</span><span class="s2">&quot;reducer&quot;</span><span class="p">][</span><span class="s2">&quot;callback&quot;</span><span class="p">]</span>
+                <span class="k">return</span> <span class="n">GraphBuilder</span><span class="p">(</span><span class="n">graph</span><span class="o">=</span><span class="n">callback_graph</span><span class="p">)</span>
+        <span class="k">return</span> <span class="kc">None</span>
+
+<div class="viewcode-block" id="ImageCollectionClient.zonal_statistics"><a class="viewcode-back" href="../../../index.html#openeo.rest.imagecollectionclient.ImageCollectionClient.zonal_statistics">[docs]</a>    <span class="k">def</span> <span class="nf">zonal_statistics</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">regions</span><span class="p">,</span> <span class="n">func</span><span class="p">,</span> <span class="n">scale</span><span class="o">=</span><span class="mi">1000</span><span class="p">,</span> <span class="n">interval</span><span class="o">=</span><span class="s2">&quot;day&quot;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s1">&#39;ImageCollection&#39;</span><span class="p">:</span>
+        <span class="sd">&quot;&quot;&quot;Calculates statistics for each zone specified in a file.</span>
+<span class="sd">            :param regions: GeoJSON or a path to a GeoJSON file containing the</span>
+<span class="sd">                            regions. For paths you must specify the path to a</span>
+<span class="sd">                            user-uploaded file without the user id in the path.</span>
+<span class="sd">            :param func: Statistical function to calculate for the specified</span>
+<span class="sd">                         zones. example values: min, max, mean, median, mode</span>
+<span class="sd">            :param scale: A nominal scale in meters of the projection to work</span>
+<span class="sd">                          in. Defaults to 1000.</span>
+<span class="sd">            :param interval: Interval to group the time series. Allowed values:</span>
+<span class="sd">                            day, wee, month, year. Defaults to day.</span>
+<span class="sd">            :return An ImageCollection instance</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">regions_geojson</span> <span class="o">=</span> <span class="n">regions</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">regions</span><span class="p">,</span><span class="n">Polygon</span><span class="p">)</span> <span class="ow">or</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">regions</span><span class="p">,</span><span class="n">MultiPolygon</span><span class="p">):</span>
+            <span class="n">regions_geojson</span> <span class="o">=</span> <span class="n">mapping</span><span class="p">(</span><span class="n">regions</span><span class="p">)</span>
+        <span class="n">process_id</span> <span class="o">=</span> <span class="s1">&#39;zonal_statistics&#39;</span>
+        <span class="n">args</span> <span class="o">=</span> <span class="p">{</span>
+                <span class="s1">&#39;data&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;from_node&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">node_id</span><span class="p">},</span>
+                <span class="s1">&#39;regions&#39;</span><span class="p">:</span> <span class="n">regions_geojson</span><span class="p">,</span>
+                <span class="s1">&#39;func&#39;</span><span class="p">:</span> <span class="n">func</span><span class="p">,</span>
+                <span class="s1">&#39;scale&#39;</span><span class="p">:</span> <span class="n">scale</span><span class="p">,</span>
+                <span class="s1">&#39;interval&#39;</span><span class="p">:</span> <span class="n">interval</span>
+            <span class="p">}</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">graph_add_process</span><span class="p">(</span><span class="n">process_id</span><span class="p">,</span> <span class="n">args</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="ImageCollectionClient.apply_dimension"><a class="viewcode-back" href="../../../index.html#openeo.rest.imagecollectionclient.ImageCollectionClient.apply_dimension">[docs]</a>    <span class="k">def</span> <span class="nf">apply_dimension</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">code</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">runtime</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">version</span><span class="o">=</span><span class="s2">&quot;latest&quot;</span><span class="p">,</span><span class="n">dimension</span><span class="o">=</span><span class="s1">&#39;temporal&#39;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s1">&#39;ImageCollection&#39;</span><span class="p">:</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Applies an n-ary process (i.e. takes an array of pixel values instead of a single pixel value) to a raster data cube.</span>
+<span class="sd">        In contrast, the process apply applies an unary process to all pixel values.</span>
+
+<span class="sd">        By default, apply_dimension applies the the process on all pixel values in the data cube as apply does, but the parameter dimension can be specified to work only on a particular dimension only. For example, if the temporal dimension is specified the process will work on a time series of pixel values.</span>
+
+<span class="sd">        The n-ary process must return as many elements in the returned array as there are in the input array. Otherwise a CardinalityChanged error must be returned.</span>
+
+
+<span class="sd">        :param code: UDF code or process identifier</span>
+<span class="sd">        :param runtime:</span>
+<span class="sd">        :param version:</span>
+<span class="sd">        :param dimension:</span>
+<span class="sd">        :return:</span>
+<span class="sd">        :raises: CardinalityChangedError</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_api_version</span><span class="o">.</span><span class="n">at_least</span><span class="p">(</span><span class="s1">&#39;0.4.0&#39;</span><span class="p">):</span>
+            <span class="n">process_id</span> <span class="o">=</span> <span class="s1">&#39;apply_dimension&#39;</span>
+            <span class="k">if</span> <span class="n">runtime</span><span class="p">:</span>
+
+                <span class="n">callback</span> <span class="o">=</span> <span class="p">{</span>
+                    <span class="s1">&#39;udf&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_create_run_udf</span><span class="p">(</span><span class="n">code</span><span class="p">,</span> <span class="n">runtime</span><span class="p">,</span> <span class="n">version</span><span class="p">)</span>
+                <span class="p">}</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">callback</span> <span class="o">=</span> <span class="p">{</span>
+                    <span class="s1">&#39;process&#39;</span><span class="p">:</span> <span class="p">{</span>
+                        <span class="s2">&quot;arguments&quot;</span><span class="p">:</span> <span class="p">{</span>
+                            <span class="s2">&quot;data&quot;</span><span class="p">:</span> <span class="p">{</span>
+                                <span class="s2">&quot;from_argument&quot;</span><span class="p">:</span> <span class="s2">&quot;data&quot;</span>
+                            <span class="p">}</span>
+                        <span class="p">},</span>
+                        <span class="s2">&quot;process_id&quot;</span><span class="p">:</span> <span class="n">code</span><span class="p">,</span>
+                        <span class="s2">&quot;result&quot;</span><span class="p">:</span> <span class="kc">True</span>
+                    <span class="p">}</span>
+                <span class="p">}</span>
+            <span class="n">args</span> <span class="o">=</span> <span class="p">{</span>
+                <span class="s1">&#39;data&#39;</span><span class="p">:</span> <span class="p">{</span>
+                    <span class="s1">&#39;from_node&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">node_id</span>
+                <span class="p">},</span>
+                <span class="s1">&#39;dimension&#39;</span><span class="p">:</span> <span class="n">dimension</span><span class="p">,</span>
+
+                <span class="s1">&#39;process&#39;</span><span class="p">:</span> <span class="p">{</span>
+                    <span class="s1">&#39;callback&#39;</span><span class="p">:</span> <span class="n">callback</span>
+                <span class="p">}</span>
+            <span class="p">}</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">graph_add_process</span><span class="p">(</span><span class="n">process_id</span><span class="p">,</span> <span class="n">args</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s2">&quot;apply_dimension requires backend version &gt;=0.4.0&quot;</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="ImageCollectionClient.apply_tiles"><a class="viewcode-back" href="../../../index.html#openeo.rest.imagecollectionclient.ImageCollectionClient.apply_tiles">[docs]</a>    <span class="k">def</span> <span class="nf">apply_tiles</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">code</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span><span class="n">runtime</span><span class="o">=</span><span class="s2">&quot;Python&quot;</span><span class="p">,</span><span class="n">version</span><span class="o">=</span><span class="s2">&quot;latest&quot;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s1">&#39;ImageCollection&#39;</span><span class="p">:</span>
+        <span class="sd">&quot;&quot;&quot;Apply a function to the given set of tiles in this image collection.</span>
+
+<span class="sd">            This type applies a simple function to one pixel of the input image or image collection.</span>
+<span class="sd">            The function gets the value of one pixel (including all bands) as input and produces a single scalar or tuple output.</span>
+<span class="sd">            The result has the same schema as the input image (collection) but different bands.</span>
+<span class="sd">            Examples include the computation of vegetation indexes or filtering cloudy pixels.</span>
+
+<span class="sd">            Code should follow the OpenEO UDF conventions.</span>
+
+<span class="sd">            :param code: String representing Python code to be executed in the backend.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_api_version</span><span class="o">.</span><span class="n">at_least</span><span class="p">(</span><span class="s1">&#39;0.4.0&#39;</span><span class="p">):</span>
+            <span class="n">process_id</span> <span class="o">=</span> <span class="s1">&#39;reduce&#39;</span>
+            <span class="n">args</span> <span class="o">=</span> <span class="p">{</span>
+                <span class="s1">&#39;data&#39;</span><span class="p">:</span> <span class="p">{</span>
+                    <span class="s1">&#39;from_node&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">node_id</span>
+                <span class="p">},</span>
+                <span class="s1">&#39;dimension&#39;</span><span class="p">:</span> <span class="s1">&#39;spectral_bands&#39;</span><span class="p">,</span><span class="c1">#TODO determine dimension based on datacube metadata</span>
+                <span class="s1">&#39;binary&#39;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+                <span class="s1">&#39;reducer&#39;</span><span class="p">:</span> <span class="p">{</span>
+                    <span class="s1">&#39;callback&#39;</span><span class="p">:</span> <span class="p">{</span>
+                        <span class="s1">&#39;udf&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_create_run_udf</span><span class="p">(</span><span class="n">code</span><span class="p">,</span> <span class="n">runtime</span><span class="p">,</span> <span class="n">version</span><span class="p">)</span>
+                    <span class="p">}</span>
+                <span class="p">}</span>
+            <span class="p">}</span>
+        <span class="k">else</span><span class="p">:</span>
+
+            <span class="n">process_id</span> <span class="o">=</span> <span class="s1">&#39;apply_tiles&#39;</span>
+            <span class="n">args</span> <span class="o">=</span> <span class="p">{</span>
+                    <span class="s1">&#39;data&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;from_node&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">node_id</span><span class="p">},</span>
+                    <span class="s1">&#39;code&#39;</span><span class="p">:{</span>
+                        <span class="s1">&#39;language&#39;</span><span class="p">:</span><span class="s1">&#39;python&#39;</span><span class="p">,</span>
+                        <span class="s1">&#39;source&#39;</span><span class="p">:</span><span class="n">code</span>
+                    <span class="p">}</span>
+                <span class="p">}</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">graph_add_process</span><span class="p">(</span><span class="n">process_id</span><span class="p">,</span> <span class="n">args</span><span class="p">)</span></div>
+
+    <span class="k">def</span> <span class="nf">_create_run_udf</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">code</span><span class="p">,</span> <span class="n">runtime</span><span class="p">,</span> <span class="n">version</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">{</span>
+            <span class="s2">&quot;arguments&quot;</span><span class="p">:</span> <span class="p">{</span>
+                <span class="s2">&quot;data&quot;</span><span class="p">:</span> <span class="p">{</span>
+                    <span class="s2">&quot;from_argument&quot;</span><span class="p">:</span> <span class="s2">&quot;data&quot;</span>
+                <span class="p">},</span>
+                <span class="s2">&quot;runtime&quot;</span><span class="p">:</span> <span class="n">runtime</span><span class="p">,</span>
+                <span class="s2">&quot;version&quot;</span><span class="p">:</span> <span class="n">version</span><span class="p">,</span>
+                <span class="s2">&quot;udf&quot;</span><span class="p">:</span> <span class="n">code</span>
+
+            <span class="p">},</span>
+            <span class="s2">&quot;process_id&quot;</span><span class="p">:</span> <span class="s2">&quot;run_udf&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;result&quot;</span><span class="p">:</span> <span class="kc">True</span>
+        <span class="p">}</span>
+
+    <span class="c1">#TODO better name, pull to ABC?</span>
+<div class="viewcode-block" id="ImageCollectionClient.reduce_tiles_over_time"><a class="viewcode-back" href="../../../index.html#openeo.rest.imagecollectionclient.ImageCollectionClient.reduce_tiles_over_time">[docs]</a>    <span class="k">def</span> <span class="nf">reduce_tiles_over_time</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">code</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span><span class="n">runtime</span><span class="o">=</span><span class="s2">&quot;Python&quot;</span><span class="p">,</span><span class="n">version</span><span class="o">=</span><span class="s2">&quot;latest&quot;</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Applies a user defined function to a timeseries of tiles. The size of the tile is backend specific, and can be limited to one pixel.</span>
+<span class="sd">        The function should reduce the given timeseries into a single (multiband) tile.</span>
+
+<span class="sd">        :param code: The UDF code, compatible with the given runtime and version</span>
+<span class="sd">        :param runtime: The UDF runtime</span>
+<span class="sd">        :param version: The UDF runtime version</span>
+<span class="sd">        :return:</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_api_version</span><span class="o">.</span><span class="n">at_least</span><span class="p">(</span><span class="s1">&#39;0.4.0&#39;</span><span class="p">):</span>
+            <span class="n">process_id</span> <span class="o">=</span> <span class="s1">&#39;reduce&#39;</span>
+            <span class="n">args</span> <span class="o">=</span> <span class="p">{</span>
+                <span class="s1">&#39;data&#39;</span><span class="p">:</span> <span class="p">{</span>
+                    <span class="s1">&#39;from_node&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">node_id</span>
+                <span class="p">},</span>
+                <span class="s1">&#39;dimension&#39;</span><span class="p">:</span> <span class="s1">&#39;temporal&#39;</span><span class="p">,</span><span class="c1">#TODO determine dimension based on datacube metadata</span>
+                <span class="s1">&#39;binary&#39;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+                <span class="s1">&#39;reducer&#39;</span><span class="p">:</span> <span class="p">{</span>
+                    <span class="s1">&#39;callback&#39;</span><span class="p">:</span> <span class="p">{</span>
+                        <span class="s1">&#39;udf&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_create_run_udf</span><span class="p">(</span><span class="n">code</span><span class="p">,</span> <span class="n">runtime</span><span class="p">,</span> <span class="n">version</span><span class="p">)</span>
+                    <span class="p">}</span>
+                <span class="p">}</span>
+            <span class="p">}</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">graph_add_process</span><span class="p">(</span><span class="n">process_id</span><span class="p">,</span> <span class="n">args</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s2">&quot;apply_to_tiles_over_time requires backend version &gt;=0.4.0&quot;</span><span class="p">)</span></div>
+
+    <span class="k">def</span> <span class="nf">apply</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">process</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">data_argument</span><span class="o">=</span><span class="s1">&#39;data&#39;</span><span class="p">,</span><span class="n">arguments</span><span class="o">=</span><span class="p">{})</span> <span class="o">-&gt;</span> <span class="s1">&#39;ImageCollection&#39;</span><span class="p">:</span>
+        <span class="n">process_id</span> <span class="o">=</span> <span class="s1">&#39;apply&#39;</span>
+        <span class="n">arguments</span><span class="p">[</span><span class="n">data_argument</span><span class="p">]</span> <span class="o">=</span> \
+            <span class="p">{</span>
+                <span class="s2">&quot;from_argument&quot;</span><span class="p">:</span> <span class="n">data_argument</span>
+            <span class="p">}</span>
+        <span class="n">args</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;data&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;from_node&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">node_id</span><span class="p">},</span>
+            <span class="s1">&#39;process&#39;</span><span class="p">:{</span>
+                <span class="s1">&#39;callback&#39;</span><span class="p">:{</span>
+                    <span class="s2">&quot;unary&quot;</span><span class="p">:{</span>
+                        <span class="s2">&quot;arguments&quot;</span><span class="p">:</span><span class="n">arguments</span><span class="p">,</span>
+                        <span class="s2">&quot;process_id&quot;</span><span class="p">:</span><span class="n">process</span><span class="p">,</span>
+                        <span class="s2">&quot;result&quot;</span><span class="p">:</span><span class="kc">True</span>
+                    <span class="p">}</span>
+                <span class="p">}</span>
+            <span class="p">}</span>
+        <span class="p">}</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">graph_add_process</span><span class="p">(</span><span class="n">process_id</span><span class="p">,</span> <span class="n">args</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_reduce_time</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">reduce_function</span> <span class="o">=</span> <span class="s2">&quot;max&quot;</span><span class="p">):</span>
+        <span class="n">process_id</span> <span class="o">=</span> <span class="s1">&#39;reduce&#39;</span>
+
+        <span class="n">args</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;data&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;from_node&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">node_id</span><span class="p">},</span>
+            <span class="s1">&#39;dimension&#39;</span><span class="p">:</span> <span class="s1">&#39;temporal&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;reducer&#39;</span><span class="p">:</span> <span class="p">{</span>
+                <span class="s1">&#39;callback&#39;</span><span class="p">:</span> <span class="p">{</span>
+                    <span class="s1">&#39;r1&#39;</span><span class="p">:</span> <span class="p">{</span>
+                        <span class="s1">&#39;arguments&#39;</span><span class="p">:</span> <span class="p">{</span>
+                            <span class="s1">&#39;data&#39;</span><span class="p">:</span> <span class="p">{</span>
+                                <span class="s1">&#39;from_argument&#39;</span><span class="p">:</span> <span class="s1">&#39;data&#39;</span>
+                            <span class="p">}</span>
+                        <span class="p">},</span>
+                        <span class="s1">&#39;process_id&#39;</span><span class="p">:</span> <span class="n">reduce_function</span><span class="p">,</span>
+                        <span class="s1">&#39;result&#39;</span><span class="p">:</span> <span class="kc">True</span>
+                    <span class="p">}</span>
+                <span class="p">}</span>
+            <span class="p">}</span>
+        <span class="p">}</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">graph_add_process</span><span class="p">(</span><span class="n">process_id</span><span class="p">,</span> <span class="n">args</span><span class="p">)</span>
+
+<div class="viewcode-block" id="ImageCollectionClient.min_time"><a class="viewcode-back" href="../../../index.html#openeo.rest.imagecollectionclient.ImageCollectionClient.min_time">[docs]</a>    <span class="k">def</span> <span class="nf">min_time</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s1">&#39;ImageCollection&#39;</span><span class="p">:</span>
+        <span class="sd">&quot;&quot;&quot;Finds the minimum value of a time series for all bands of the input dataset.</span>
+<span class="sd">            :return An ImageCollection instance</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_reduce_time</span><span class="p">(</span><span class="n">reduce_function</span><span class="o">=</span><span class="s2">&quot;min&quot;</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="ImageCollectionClient.max_time"><a class="viewcode-back" href="../../../index.html#openeo.rest.imagecollectionclient.ImageCollectionClient.max_time">[docs]</a>    <span class="k">def</span> <span class="nf">max_time</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s1">&#39;ImageCollection&#39;</span><span class="p">:</span>
+        <span class="sd">&quot;&quot;&quot;Finds the maximum value of a time series for all bands of the input dataset.</span>
+<span class="sd">            :return An ImageCollection instance</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_reduce_time</span><span class="p">(</span><span class="n">reduce_function</span><span class="o">=</span><span class="s2">&quot;max&quot;</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="ImageCollectionClient.mean_time"><a class="viewcode-back" href="../../../index.html#openeo.rest.imagecollectionclient.ImageCollectionClient.mean_time">[docs]</a>    <span class="k">def</span> <span class="nf">mean_time</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s1">&#39;ImageCollection&#39;</span><span class="p">:</span>
+        <span class="sd">&quot;&quot;&quot;Finds the mean value of a time series for all bands of the input dataset.</span>
+<span class="sd">            :return An ImageCollection instance</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_reduce_time</span><span class="p">(</span><span class="n">reduce_function</span><span class="o">=</span><span class="s2">&quot;mean&quot;</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="ImageCollectionClient.median_time"><a class="viewcode-back" href="../../../index.html#openeo.rest.imagecollectionclient.ImageCollectionClient.median_time">[docs]</a>    <span class="k">def</span> <span class="nf">median_time</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s1">&#39;ImageCollection&#39;</span><span class="p">:</span>
+        <span class="sd">&quot;&quot;&quot;Finds the median value of a time series for all bands of the input dataset.</span>
+<span class="sd">            :return An ImageCollection instance</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_reduce_time</span><span class="p">(</span><span class="n">reduce_function</span><span class="o">=</span><span class="s2">&quot;median&quot;</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="ImageCollectionClient.count_time"><a class="viewcode-back" href="../../../index.html#openeo.rest.imagecollectionclient.ImageCollectionClient.count_time">[docs]</a>    <span class="k">def</span> <span class="nf">count_time</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s1">&#39;ImageCollection&#39;</span><span class="p">:</span>
+        <span class="sd">&quot;&quot;&quot;Counts the number of images with a valid mask in a time series for all bands of the input dataset.</span>
+<span class="sd">            :return An ImageCollection instance</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_reduce_time</span><span class="p">(</span><span class="n">reduce_function</span><span class="o">=</span><span class="s2">&quot;count&quot;</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="ImageCollectionClient.ndvi"><a class="viewcode-back" href="../../../index.html#openeo.rest.imagecollectionclient.ImageCollectionClient.ndvi">[docs]</a>    <span class="k">def</span> <span class="nf">ndvi</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;ndvi&quot;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s1">&#39;ImageCollection&#39;</span><span class="p">:</span>
+        <span class="sd">&quot;&quot;&quot; NDVI</span>
+
+<span class="sd">            :return An ImageCollection instance</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">process_id</span> <span class="o">=</span> <span class="s1">&#39;ndvi&#39;</span>
+        <span class="n">args</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;data&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;from_node&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">node_id</span><span class="p">},</span>
+            <span class="s1">&#39;name&#39;</span><span class="p">:</span> <span class="n">name</span>
+        <span class="p">}</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">graph_add_process</span><span class="p">(</span><span class="n">process_id</span><span class="p">,</span> <span class="n">args</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="ImageCollectionClient.stretch_colors"><a class="viewcode-back" href="../../../index.html#openeo.rest.imagecollectionclient.ImageCollectionClient.stretch_colors">[docs]</a>    <span class="nd">@deprecated</span><span class="p">(</span><span class="s2">&quot;use &#39;linear_scale_range&#39; instead&quot;</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">stretch_colors</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="nb">min</span><span class="p">,</span> <span class="nb">max</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s1">&#39;ImageCollection&#39;</span><span class="p">:</span>
+        <span class="sd">&quot;&quot;&quot; Color stretching</span>
+<span class="sd">        deprecated, use &#39;linear_scale_range&#39; instead</span>
+<span class="sd">            :param min: Minimum value</span>
+<span class="sd">            :param max: Maximum value</span>
+<span class="sd">            :return An ImageCollection instance</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">process_id</span> <span class="o">=</span> <span class="s1">&#39;stretch_colors&#39;</span>
+        <span class="n">args</span> <span class="o">=</span> <span class="p">{</span>
+                <span class="s1">&#39;data&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;from_node&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">node_id</span><span class="p">},</span>
+                <span class="s1">&#39;min&#39;</span><span class="p">:</span> <span class="nb">min</span><span class="p">,</span>
+                <span class="s1">&#39;max&#39;</span><span class="p">:</span> <span class="nb">max</span>
+            <span class="p">}</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">graph_add_process</span><span class="p">(</span><span class="n">process_id</span><span class="p">,</span> <span class="n">args</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="ImageCollectionClient.linear_scale_range"><a class="viewcode-back" href="../../../index.html#openeo.rest.imagecollectionclient.ImageCollectionClient.linear_scale_range">[docs]</a>    <span class="k">def</span> <span class="nf">linear_scale_range</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">input_min</span><span class="p">,</span> <span class="n">input_max</span><span class="p">,</span> <span class="n">output_min</span><span class="p">,</span> <span class="n">output_max</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s1">&#39;ImageCollection&#39;</span><span class="p">:</span>
+        <span class="sd">&quot;&quot;&quot; Color stretching</span>
+<span class="sd">            :param input_min: Minimum input value</span>
+<span class="sd">            :param input_max: Maximum input value</span>
+<span class="sd">            :param output_min: Minimum output value</span>
+<span class="sd">            :param output_max: Maximum output value</span>
+<span class="sd">            :return An ImageCollection instance</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">process_id</span> <span class="o">=</span> <span class="s1">&#39;linear_scale_range&#39;</span>
+        <span class="n">args</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;x&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;from_node&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">node_id</span><span class="p">},</span>
+            <span class="s1">&#39;inputMin&#39;</span><span class="p">:</span> <span class="n">input_min</span><span class="p">,</span>
+            <span class="s1">&#39;inputMax&#39;</span><span class="p">:</span> <span class="n">input_max</span><span class="p">,</span>
+            <span class="s1">&#39;outputMin&#39;</span><span class="p">:</span> <span class="n">output_min</span><span class="p">,</span>
+            <span class="s1">&#39;outputMax&#39;</span><span class="p">:</span> <span class="n">output_max</span>
+        <span class="p">}</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">graph_add_process</span><span class="p">(</span><span class="n">process_id</span><span class="p">,</span> <span class="n">args</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="ImageCollectionClient.mask"><a class="viewcode-back" href="../../../index.html#openeo.rest.imagecollectionclient.ImageCollectionClient.mask">[docs]</a>    <span class="k">def</span> <span class="nf">mask</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">polygon</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="n">Polygon</span><span class="p">,</span> <span class="n">MultiPolygon</span><span class="p">,</span><span class="nb">str</span><span class="p">]</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">srs</span><span class="o">=</span><span class="s2">&quot;EPSG:4326&quot;</span><span class="p">,</span> <span class="n">rastermask</span><span class="p">:</span> <span class="s1">&#39;ImageCollection&#39;</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+             <span class="n">replacement</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s1">&#39;ImageCollection&#39;</span><span class="p">:</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Mask the image collection using either a polygon or a raster mask.</span>
+
+<span class="sd">        All pixels outside the polygon should be set to the nodata value.</span>
+<span class="sd">        All pixels inside, or intersecting the polygon should retain their original value.</span>
+
+<span class="sd">        All pixels are replaced for which the corresponding pixels in the mask are non-zero (for numbers) or True</span>
+<span class="sd">        (for boolean values).</span>
+
+<span class="sd">        The pixel values are replaced with the value specified for replacement, which defaults to None (no data).</span>
+<span class="sd">        No data values will be left untouched by the masking operation.</span>
+
+<span class="sd">        # TODO: just provide a single `mask` argument and detect the type: polygon or process graph</span>
+
+<span class="sd">        :param polygon: A polygon, provided as a :class:`shapely.geometry.Polygon` or :class:`shapely.geometry.MultiPolygon`, or a filename pointing to a valid vector file</span>
+<span class="sd">        :param srs: The reference system of the provided polygon, by default this is Lat Lon (EPSG:4326).</span>
+<span class="sd">        :param rastermask: the raster mask</span>
+<span class="sd">        :param replacement: the value to replace the masked pixels with</span>
+<span class="sd">        :raise: :class:`ValueError` if a polygon is supplied and its area is 0.</span>
+<span class="sd">        :return: A new ImageCollection, with the mask applied.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">mask</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="n">new_collection</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="n">polygon</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">polygon</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+                <span class="n">new_collection</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">graph_add_process</span><span class="p">(</span><span class="s1">&#39;read_vector&#39;</span><span class="p">,</span> <span class="n">args</span><span class="o">=</span><span class="p">{</span>
+                    <span class="s1">&#39;filename&#39;</span><span class="p">:</span> <span class="n">polygon</span>
+                <span class="p">})</span>
+
+                <span class="n">mask</span> <span class="o">=</span> <span class="p">{</span>
+                    <span class="s1">&#39;from_node&#39;</span><span class="p">:</span> <span class="n">new_collection</span><span class="o">.</span><span class="n">node_id</span>
+                <span class="p">}</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">polygon</span><span class="o">.</span><span class="n">area</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Mask </span><span class="si">{m!s}</span><span class="s2"> has an area of </span><span class="si">{a!r}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">m</span><span class="o">=</span><span class="n">polygon</span><span class="p">,</span> <span class="n">a</span><span class="o">=</span><span class="n">polygon</span><span class="o">.</span><span class="n">area</span><span class="p">))</span>
+
+                <span class="n">geojson</span> <span class="o">=</span> <span class="n">mapping</span><span class="p">(</span><span class="n">polygon</span><span class="p">)</span>
+                <span class="n">geojson</span><span class="p">[</span><span class="s1">&#39;crs&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+                    <span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="s1">&#39;name&#39;</span><span class="p">,</span>
+                    <span class="s1">&#39;properties&#39;</span><span class="p">:</span> <span class="p">{</span>
+                        <span class="s1">&#39;name&#39;</span><span class="p">:</span> <span class="n">srs</span>
+                    <span class="p">}</span>
+                <span class="p">}</span>
+                <span class="n">mask</span> <span class="o">=</span> <span class="n">geojson</span>
+                <span class="n">new_collection</span> <span class="o">=</span> <span class="bp">self</span>
+        <span class="k">elif</span> <span class="n">rastermask</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">mask_node</span> <span class="o">=</span> <span class="n">rastermask</span><span class="o">.</span><span class="n">graph</span><span class="p">[</span><span class="n">rastermask</span><span class="o">.</span><span class="n">node_id</span><span class="p">]</span>
+            <span class="n">mask_node</span><span class="p">[</span><span class="s1">&#39;result&#39;</span><span class="p">]</span><span class="o">=</span><span class="kc">True</span>
+            <span class="n">new_collection</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_graph_merge</span><span class="p">(</span><span class="n">rastermask</span><span class="o">.</span><span class="n">graph</span><span class="p">)</span>
+            <span class="c1">#mask node id may have changed!</span>
+            <span class="n">mask_id</span> <span class="o">=</span> <span class="n">new_collection</span><span class="o">.</span><span class="n">builder</span><span class="o">.</span><span class="n">find_result_node_id</span><span class="p">()</span>
+            <span class="n">mask_node</span> <span class="o">=</span> <span class="n">new_collection</span><span class="o">.</span><span class="n">graph</span><span class="p">[</span><span class="n">mask_id</span><span class="p">]</span>
+            <span class="n">mask_node</span><span class="p">[</span><span class="s1">&#39;result&#39;</span><span class="p">]</span><span class="o">=</span><span class="kc">False</span>
+            <span class="n">mask</span> <span class="o">=</span> <span class="p">{</span>
+                <span class="s1">&#39;from_node&#39;</span><span class="p">:</span> <span class="n">mask_id</span>
+            <span class="p">}</span>
+
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">AttributeError</span><span class="p">(</span><span class="s2">&quot;mask process: either a polygon or a rastermask should be provided.&quot;</span><span class="p">)</span>
+
+        <span class="n">process_id</span> <span class="o">=</span> <span class="s1">&#39;mask&#39;</span>
+
+        <span class="n">args</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;data&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;from_node&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">node_id</span><span class="p">},</span>
+            <span class="s1">&#39;mask&#39;</span><span class="p">:</span> <span class="n">mask</span>
+        <span class="p">}</span>
+        <span class="k">if</span> <span class="n">replacement</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">args</span><span class="p">[</span><span class="s1">&#39;replacement&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">replacement</span>
+
+        <span class="k">return</span> <span class="n">new_collection</span><span class="o">.</span><span class="n">graph_add_process</span><span class="p">(</span><span class="n">process_id</span><span class="p">,</span> <span class="n">args</span><span class="p">)</span></div>
+
+    <span class="k">def</span> <span class="nf">merge</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">other</span><span class="p">:</span><span class="s1">&#39;ImageCollection&#39;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s1">&#39;ImageCollection&#39;</span><span class="p">:</span>
+        <span class="n">other_node</span> <span class="o">=</span> <span class="n">other</span><span class="o">.</span><span class="n">graph</span><span class="p">[</span><span class="n">other</span><span class="o">.</span><span class="n">node_id</span><span class="p">]</span>
+        <span class="n">other_node</span><span class="p">[</span><span class="s1">&#39;result&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="n">new_collection</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_graph_merge</span><span class="p">(</span><span class="n">other</span><span class="o">.</span><span class="n">graph</span><span class="p">)</span>
+        <span class="c1"># mask node id may have changed!</span>
+        <span class="n">mask_id</span> <span class="o">=</span> <span class="n">new_collection</span><span class="o">.</span><span class="n">builder</span><span class="o">.</span><span class="n">find_result_node_id</span><span class="p">()</span>
+        <span class="n">other_node</span> <span class="o">=</span> <span class="n">new_collection</span><span class="o">.</span><span class="n">graph</span><span class="p">[</span><span class="n">mask_id</span><span class="p">]</span>
+        <span class="n">other_node</span><span class="p">[</span><span class="s1">&#39;result&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="n">cube2</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;from_node&#39;</span><span class="p">:</span> <span class="n">mask_id</span>
+        <span class="p">}</span>
+        <span class="n">args</span><span class="o">=</span><span class="p">{</span>
+            <span class="s1">&#39;cube1&#39;</span><span class="p">:{</span><span class="s1">&#39;from_node&#39;</span><span class="p">:</span><span class="bp">self</span><span class="o">.</span><span class="n">node_id</span><span class="p">},</span>
+            <span class="s1">&#39;cube2&#39;</span><span class="p">:</span><span class="n">cube2</span>
+        <span class="p">}</span>
+        <span class="k">return</span> <span class="n">new_collection</span><span class="o">.</span><span class="n">graph_add_process</span><span class="p">(</span><span class="s1">&#39;merge_cubes&#39;</span><span class="p">,</span> <span class="n">args</span><span class="p">)</span>
+
+
+
+<div class="viewcode-block" id="ImageCollectionClient.apply_kernel"><a class="viewcode-back" href="../../../index.html#openeo.rest.imagecollectionclient.ImageCollectionClient.apply_kernel">[docs]</a>    <span class="k">def</span> <span class="nf">apply_kernel</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">kernel</span><span class="p">,</span> <span class="n">factor</span><span class="o">=</span><span class="mf">1.0</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s1">&#39;ImageCollection&#39;</span><span class="p">:</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Applies a focal operation based on a weighted kernel to each value of the specified dimensions in the data cube.</span>
+
+<span class="sd">        :param kernel: The kernel to be applied on the data cube. It should be a 2D numpy array.</span>
+<span class="sd">        :param factor: A factor that is multiplied to each value computed by the focal operation. This is basically a shortcut for explicitly multiplying each value by a factor afterwards, which is often required for some kernel-based algorithms such as the Gaussian blur.</span>
+<span class="sd">        :return: A data cube with the newly computed values. The resolution, cardinality and the number of dimensions are the same as for the original data cube.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">graph_add_process</span><span class="p">(</span><span class="s1">&#39;apply_kernel&#39;</span><span class="p">,</span> <span class="p">{</span>
+            <span class="s1">&#39;data&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;from_node&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">node_id</span><span class="p">},</span>
+            <span class="s1">&#39;kernel&#39;</span><span class="p">:</span><span class="n">kernel</span><span class="o">.</span><span class="n">tolist</span><span class="p">(),</span>
+            <span class="s1">&#39;factor&#39;</span><span class="p">:</span><span class="n">factor</span>
+        <span class="p">})</span></div>
+
+    <span class="c1">####VIEW methods #######</span>
+<div class="viewcode-block" id="ImageCollectionClient.timeseries"><a class="viewcode-back" href="../../../index.html#openeo.rest.imagecollectionclient.ImageCollectionClient.timeseries">[docs]</a>    <span class="k">def</span> <span class="nf">timeseries</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">srs</span><span class="o">=</span><span class="s2">&quot;EPSG:4326&quot;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">:</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Extract a time series for the given point location.</span>
+
+<span class="sd">        :param x: The x coordinate of the point</span>
+<span class="sd">        :param y: The y coordinate of the point</span>
+<span class="sd">        :param srs: The spatial reference system of the coordinates, by default</span>
+<span class="sd">        this is &#39;EPSG:4326&#39;, where x=longitude and y=latitude.</span>
+<span class="sd">        :return: Dict: A timeseries</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">graph</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">node_id</span><span class="p">][</span><span class="s1">&#39;result&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">point_timeseries</span><span class="p">({</span><span class="s2">&quot;process_graph&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">graph</span><span class="p">},</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">srs</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="ImageCollectionClient.polygonal_mean_timeseries"><a class="viewcode-back" href="../../../index.html#openeo.rest.imagecollectionclient.ImageCollectionClient.polygonal_mean_timeseries">[docs]</a>    <span class="k">def</span> <span class="nf">polygonal_mean_timeseries</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">polygon</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="n">Polygon</span><span class="p">,</span> <span class="n">MultiPolygon</span><span class="p">,</span> <span class="nb">str</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="s1">&#39;ImageCollection&#39;</span><span class="p">:</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Extract a mean time series for the given (multi)polygon. Its points are</span>
+<span class="sd">        expected to be in the EPSG:4326 coordinate</span>
+<span class="sd">        reference system.</span>
+
+<span class="sd">        :param polygon: The (multi)polygon; or a file path or HTTP URL to a GeoJSON file or shape file</span>
+<span class="sd">        :return: ImageCollection</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_polygonal_timeseries</span><span class="p">(</span><span class="n">polygon</span><span class="p">,</span> <span class="s2">&quot;mean&quot;</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="ImageCollectionClient.polygonal_histogram_timeseries"><a class="viewcode-back" href="../../../index.html#openeo.rest.imagecollectionclient.ImageCollectionClient.polygonal_histogram_timeseries">[docs]</a>    <span class="k">def</span> <span class="nf">polygonal_histogram_timeseries</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">polygon</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="n">Polygon</span><span class="p">,</span> <span class="n">MultiPolygon</span><span class="p">,</span> <span class="nb">str</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">:</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Extract a histogram time series for the given (multi)polygon. Its points are</span>
+<span class="sd">        expected to be in the EPSG:4326 coordinate</span>
+<span class="sd">        reference system.</span>
+
+<span class="sd">        :param polygon: The (multi)polygon; or a file path or HTTP URL to a GeoJSON file or shape file</span>
+<span class="sd">        :return: ImageCollection</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_polygonal_timeseries</span><span class="p">(</span><span class="n">polygon</span><span class="p">,</span> <span class="s2">&quot;histogram&quot;</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="ImageCollectionClient.polygonal_median_timeseries"><a class="viewcode-back" href="../../../index.html#openeo.rest.imagecollectionclient.ImageCollectionClient.polygonal_median_timeseries">[docs]</a>    <span class="k">def</span> <span class="nf">polygonal_median_timeseries</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">polygon</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="n">Polygon</span><span class="p">,</span> <span class="n">MultiPolygon</span><span class="p">,</span> <span class="nb">str</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">:</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Extract a median time series for the given (multi)polygon. Its points are</span>
+<span class="sd">        expected to be in the EPSG:4326 coordinate</span>
+<span class="sd">        reference system.</span>
+
+<span class="sd">        :param polygon: The (multi)polygon; or a file path or HTTP URL to a GeoJSON file or shape file</span>
+<span class="sd">        :return: ImageCollection</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_polygonal_timeseries</span><span class="p">(</span><span class="n">polygon</span><span class="p">,</span> <span class="s2">&quot;median&quot;</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="ImageCollectionClient.polygonal_standarddeviation_timeseries"><a class="viewcode-back" href="../../../index.html#openeo.rest.imagecollectionclient.ImageCollectionClient.polygonal_standarddeviation_timeseries">[docs]</a>    <span class="k">def</span> <span class="nf">polygonal_standarddeviation_timeseries</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">polygon</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="n">Polygon</span><span class="p">,</span> <span class="n">MultiPolygon</span><span class="p">,</span> <span class="nb">str</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">:</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Extract a time series of standard deviations for the given (multi)polygon. Its points are</span>
+<span class="sd">        expected to be in the EPSG:4326 coordinate</span>
+<span class="sd">        reference system.</span>
+
+<span class="sd">        :param polygon: The (multi)polygon; or a file path or HTTP URL to a GeoJSON file or shape file</span>
+<span class="sd">        :return: ImageCollection</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_polygonal_timeseries</span><span class="p">(</span><span class="n">polygon</span><span class="p">,</span> <span class="s2">&quot;sd&quot;</span><span class="p">)</span></div>
+
+    <span class="k">def</span> <span class="nf">_polygonal_timeseries</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">polygon</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="n">Polygon</span><span class="p">,</span> <span class="n">MultiPolygon</span><span class="p">,</span> <span class="nb">str</span><span class="p">],</span> <span class="n">func</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s1">&#39;ImageCollection&#39;</span><span class="p">:</span>
+        <span class="k">def</span> <span class="nf">graph_add_aggregate_process</span><span class="p">(</span><span class="n">graph</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s1">&#39;ImageCollection&#39;</span><span class="p">:</span>
+            <span class="n">process_id</span> <span class="o">=</span> <span class="s1">&#39;aggregate_zonal&#39;</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_api_version</span><span class="o">.</span><span class="n">at_least</span><span class="p">(</span><span class="s1">&#39;0.4.0&#39;</span><span class="p">):</span>
+                <span class="n">process_id</span> <span class="o">=</span> <span class="s1">&#39;aggregate_polygon&#39;</span>
+
+            <span class="n">args</span> <span class="o">=</span> <span class="p">{</span>
+                <span class="s1">&#39;data&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;from_node&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">node_id</span><span class="p">},</span>
+                <span class="s1">&#39;dimension&#39;</span><span class="p">:</span> <span class="s1">&#39;temporal&#39;</span><span class="p">,</span>
+                <span class="s1">&#39;polygons&#39;</span><span class="p">:</span> <span class="n">polygons</span>
+            <span class="p">}</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_api_version</span><span class="o">.</span><span class="n">at_least</span><span class="p">(</span><span class="s1">&#39;0.4.0&#39;</span><span class="p">):</span>
+                <span class="k">del</span> <span class="n">args</span><span class="p">[</span><span class="s1">&#39;dimension&#39;</span><span class="p">]</span>
+                <span class="n">args</span><span class="p">[</span><span class="s1">&#39;reducer&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+                    <span class="s1">&#39;callback&#39;</span><span class="p">:</span> <span class="p">{</span>
+                        <span class="s2">&quot;unary&quot;</span><span class="p">:</span> <span class="p">{</span>
+                            <span class="s2">&quot;arguments&quot;</span><span class="p">:</span> <span class="p">{</span>
+                                <span class="s2">&quot;data&quot;</span><span class="p">:</span> <span class="p">{</span>
+                                    <span class="s2">&quot;from_argument&quot;</span><span class="p">:</span> <span class="s2">&quot;data&quot;</span>
+                                <span class="p">}</span>
+                            <span class="p">},</span>
+                            <span class="s2">&quot;process_id&quot;</span><span class="p">:</span> <span class="n">func</span><span class="p">,</span>
+                            <span class="s2">&quot;result&quot;</span><span class="p">:</span> <span class="kc">True</span>
+                        <span class="p">}</span>
+                    <span class="p">}</span>
+                <span class="p">}</span>
+
+            <span class="k">return</span> <span class="n">graph</span><span class="o">.</span><span class="n">graph_add_process</span><span class="p">(</span><span class="n">process_id</span><span class="p">,</span> <span class="n">args</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">polygon</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_api_version</span><span class="o">.</span><span class="n">at_least</span><span class="p">(</span><span class="s1">&#39;0.4.0&#39;</span><span class="p">):</span>
+                <span class="n">with_read_vector</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">graph_add_process</span><span class="p">(</span><span class="s1">&#39;read_vector&#39;</span><span class="p">,</span> <span class="n">args</span><span class="o">=</span><span class="p">{</span>
+                    <span class="s1">&#39;filename&#39;</span><span class="p">:</span> <span class="n">polygon</span>
+                <span class="p">})</span>
+
+                <span class="n">polygons</span> <span class="o">=</span> <span class="p">{</span>
+                    <span class="s1">&#39;from_node&#39;</span><span class="p">:</span> <span class="n">with_read_vector</span><span class="o">.</span><span class="n">node_id</span>
+                <span class="p">}</span>
+
+                <span class="k">return</span> <span class="n">graph_add_aggregate_process</span><span class="p">(</span><span class="n">with_read_vector</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s2">&quot;filename requires backend version &gt;=0.4.0&quot;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">polygons</span> <span class="o">=</span> <span class="n">mapping</span><span class="p">(</span><span class="n">polygon</span><span class="p">)</span>
+            <span class="n">polygons</span><span class="p">[</span><span class="s1">&#39;crs&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+                <span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="s1">&#39;name&#39;</span><span class="p">,</span>
+                <span class="s1">&#39;properties&#39;</span><span class="p">:</span> <span class="p">{</span>
+                    <span class="s1">&#39;name&#39;</span><span class="p">:</span> <span class="s1">&#39;EPSG:4326&#39;</span>
+                <span class="p">}</span>
+            <span class="p">}</span>
+
+            <span class="k">return</span> <span class="n">graph_add_aggregate_process</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">save_result</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="nb">format</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">options</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">graph_add_process</span><span class="p">(</span>
+            <span class="n">process_id</span><span class="o">=</span><span class="s2">&quot;save_result&quot;</span><span class="p">,</span>
+            <span class="n">args</span><span class="o">=</span><span class="p">{</span>
+                <span class="s2">&quot;data&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;from_node&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">node_id</span><span class="p">},</span>
+                <span class="s2">&quot;format&quot;</span><span class="p">:</span> <span class="nb">format</span><span class="p">,</span>
+                <span class="s2">&quot;options&quot;</span><span class="p">:</span> <span class="n">options</span>
+            <span class="p">}</span>
+        <span class="p">)</span>
+
+<div class="viewcode-block" id="ImageCollectionClient.download"><a class="viewcode-back" href="../../../index.html#openeo.rest.imagecollectionclient.ImageCollectionClient.download">[docs]</a>    <span class="k">def</span> <span class="nf">download</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">outputfile</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="o">**</span><span class="n">format_options</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+        <span class="sd">&quot;&quot;&quot;Extracts a geotiff from this image collection.&quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_api_version</span><span class="o">.</span><span class="n">at_least</span><span class="p">(</span><span class="s1">&#39;0.4.0&#39;</span><span class="p">):</span>
+            <span class="n">args</span> <span class="o">=</span> <span class="p">{</span>
+                <span class="s1">&#39;data&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;from_node&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">node_id</span><span class="p">},</span>
+                <span class="s1">&#39;options&#39;</span><span class="p">:</span> <span class="n">format_options</span>
+            <span class="p">}</span>
+            <span class="k">if</span> <span class="s1">&#39;format&#39;</span> <span class="ow">in</span> <span class="n">format_options</span><span class="p">:</span>
+                <span class="n">args</span><span class="p">[</span><span class="s1">&#39;format&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">format_options</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;format&#39;</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Please use the &#39;format&#39; keyword argument to specify the output format. Use openeo.connection.Connection#list_file_types to retrieve available ouput formats for this backend.&quot;</span><span class="p">)</span>
+            <span class="n">newcollection</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">graph_add_process</span><span class="p">(</span><span class="s2">&quot;save_result&quot;</span><span class="p">,</span><span class="n">args</span><span class="p">)</span>
+            <span class="n">newcollection</span><span class="o">.</span><span class="n">graph</span><span class="p">[</span><span class="n">newcollection</span><span class="o">.</span><span class="n">node_id</span><span class="p">][</span><span class="s2">&quot;result&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">download</span><span class="p">(</span><span class="n">newcollection</span><span class="o">.</span><span class="n">graph</span><span class="p">,</span> <span class="n">outputfile</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">graph</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">node_id</span><span class="p">][</span><span class="s2">&quot;result&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">download</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">graph</span><span class="p">,</span> <span class="n">outputfile</span><span class="p">)</span></div>
+
+    <span class="k">def</span> <span class="nf">tiled_viewing_service</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">:</span>
+        <span class="n">newbuilder</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">builder</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+        <span class="n">newbuilder</span><span class="o">.</span><span class="n">processes</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">node_id</span><span class="p">][</span><span class="s1">&#39;result&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">create_service</span><span class="p">(</span><span class="n">newbuilder</span><span class="o">.</span><span class="n">processes</span><span class="p">,</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+<div class="viewcode-block" id="ImageCollectionClient.execute_batch"><a class="viewcode-back" href="../../../index.html#openeo.rest.imagecollectionclient.ImageCollectionClient.execute_batch">[docs]</a>    <span class="k">def</span> <span class="nf">execute_batch</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span>
+            <span class="n">outputfile</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">out_format</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="nb">print</span><span class="o">=</span><span class="nb">print</span><span class="p">,</span> <span class="n">max_poll_interval</span><span class="o">=</span><span class="mi">60</span><span class="p">,</span> <span class="n">connection_retry_interval</span><span class="o">=</span><span class="mi">30</span><span class="p">,</span>
+            <span class="o">**</span><span class="n">format_options</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Evaluate the process graph by creating a batch job, and retrieving the results when it is finished.</span>
+<span class="sd">        This method is mostly recommended if the batch job is expected to run in a reasonable amount of time.</span>
+
+<span class="sd">        For very long running jobs, you probably do not want to keep the client running.</span>
+
+<span class="sd">        :param outputfile: The path of a file to which a result can be written</span>
+<span class="sd">        :param out_format: String Format of the job result.</span>
+<span class="sd">        :param format_options: String Parameters for the job result format</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">job</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">send_job</span><span class="p">(</span><span class="n">out_format</span><span class="p">,</span> <span class="o">**</span><span class="n">format_options</span><span class="p">)</span>
+        <span class="n">job</span><span class="o">.</span><span class="n">start_job</span><span class="p">()</span>
+
+        <span class="n">job_id</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="n">job_info</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="n">status</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="n">poll_interval</span> <span class="o">=</span> <span class="mi">5</span>
+        <span class="n">start_time</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
+        <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+            <span class="n">elapsed</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">datetime</span><span class="o">.</span><span class="n">timedelta</span><span class="p">(</span><span class="n">seconds</span><span class="o">=</span><span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span> <span class="o">-</span> <span class="n">start_time</span><span class="p">))</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">job_info</span> <span class="o">=</span> <span class="n">job</span><span class="o">.</span><span class="n">describe_job</span><span class="p">()</span>
+            <span class="k">except</span> <span class="ne">ConnectionError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">{t}</span><span class="s2"> Connection error while querying job status: </span><span class="si">{e}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">t</span><span class="o">=</span><span class="n">elapsed</span><span class="p">,</span> <span class="n">e</span><span class="o">=</span><span class="n">e</span><span class="p">))</span>
+                <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="n">connection_retry_interval</span><span class="p">)</span>
+                <span class="k">continue</span>
+
+            <span class="n">job_id</span> <span class="o">=</span> <span class="n">job_info</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;id&quot;</span><span class="p">,</span> <span class="s2">&quot;N/A&quot;</span><span class="p">)</span>
+            <span class="n">status</span> <span class="o">=</span> <span class="n">job_info</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;status&quot;</span><span class="p">,</span> <span class="s2">&quot;N/A&quot;</span><span class="p">)</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">{t}</span><span class="s2"> Job </span><span class="si">{i}</span><span class="s2">: </span><span class="si">{s}</span><span class="s2"> (progress </span><span class="si">{p}</span><span class="s2">)&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                <span class="n">t</span><span class="o">=</span><span class="n">elapsed</span><span class="p">,</span> <span class="n">i</span><span class="o">=</span><span class="n">job_id</span><span class="p">,</span> <span class="n">s</span><span class="o">=</span><span class="n">status</span><span class="p">,</span> <span class="n">p</span><span class="o">=</span><span class="n">job_info</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;progress&quot;</span><span class="p">,</span> <span class="s2">&quot;N/A&quot;</span><span class="p">))</span>
+            <span class="p">)</span>
+            <span class="k">if</span> <span class="n">status</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">&#39;submitted&#39;</span><span class="p">,</span> <span class="s1">&#39;queued&#39;</span><span class="p">,</span> <span class="s1">&#39;running&#39;</span><span class="p">):</span>
+                <span class="k">break</span>
+
+            <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="n">poll_interval</span><span class="p">)</span>
+            <span class="n">poll_interval</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="mf">1.25</span> <span class="o">*</span> <span class="n">poll_interval</span><span class="p">,</span> <span class="n">max_poll_interval</span><span class="p">)</span>
+
+        <span class="n">elapsed</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">datetime</span><span class="o">.</span><span class="n">timedelta</span><span class="p">(</span><span class="n">seconds</span><span class="o">=</span><span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span> <span class="o">-</span> <span class="n">start_time</span><span class="p">))</span>
+        <span class="k">if</span> <span class="n">status</span> <span class="o">==</span> <span class="s1">&#39;finished&#39;</span><span class="p">:</span>
+            <span class="n">job</span><span class="o">.</span><span class="n">download_results</span><span class="p">(</span><span class="n">outputfile</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;Batch job </span><span class="si">{i}</span><span class="s2"> didn&#39;t finish properly. Status: </span><span class="si">{s}</span><span class="s2"> (after </span><span class="si">{t}</span><span class="s2">).&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                <span class="n">i</span><span class="o">=</span><span class="n">job_id</span><span class="p">,</span> <span class="n">s</span><span class="o">=</span><span class="n">status</span><span class="p">,</span> <span class="n">t</span><span class="o">=</span><span class="n">elapsed</span>
+            <span class="p">))</span>
+
+        <span class="k">return</span> <span class="n">job_info</span></div>
+
+
+<div class="viewcode-block" id="ImageCollectionClient.send_job"><a class="viewcode-back" href="../../../index.html#openeo.rest.imagecollectionclient.ImageCollectionClient.send_job">[docs]</a>    <span class="k">def</span> <span class="nf">send_job</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">out_format</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">format_options</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Job</span><span class="p">:</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Sends a job to the backend and returns a ClientJob instance.</span>
+
+<span class="sd">        :param out_format: String Format of the job result.</span>
+<span class="sd">        :param format_options: String Parameters for the job result format</span>
+<span class="sd">        :return: status: ClientJob resulting job.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">out_format</span><span class="p">:</span>
+            <span class="n">graph</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">graph</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_api_version</span><span class="o">.</span><span class="n">at_least</span><span class="p">(</span><span class="s1">&#39;0.4.0&#39;</span><span class="p">):</span>
+                <span class="n">args</span> <span class="o">=</span> <span class="p">{</span>
+                    <span class="s1">&#39;data&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;from_node&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">node_id</span><span class="p">},</span>
+                    <span class="s1">&#39;options&#39;</span><span class="p">:</span> <span class="n">format_options</span><span class="p">,</span>
+                    <span class="s1">&#39;format&#39;</span><span class="p">:</span> <span class="n">out_format</span>
+                <span class="p">}</span>
+                <span class="n">newcollection</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">graph_add_process</span><span class="p">(</span><span class="s2">&quot;save_result&quot;</span><span class="p">,</span> <span class="n">args</span><span class="p">)</span>
+                <span class="n">newcollection</span><span class="o">.</span><span class="n">graph</span><span class="p">[</span><span class="n">newcollection</span><span class="o">.</span><span class="n">node_id</span><span class="p">][</span><span class="s2">&quot;result&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
+                <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">create_job</span><span class="p">(</span><span class="n">process_graph</span><span class="o">=</span><span class="n">newcollection</span><span class="o">.</span><span class="n">graph</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">create_job</span><span class="p">(</span><span class="n">process_graph</span><span class="o">=</span><span class="n">graph</span><span class="p">,</span> <span class="n">output_format</span><span class="o">=</span><span class="n">out_format</span><span class="p">,</span>
+                                               <span class="n">output_parameters</span><span class="o">=</span><span class="n">format_options</span><span class="p">)</span>
+
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">create_job</span><span class="p">(</span><span class="n">process_graph</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">graph</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="ImageCollectionClient.execute"><a class="viewcode-back" href="../../../index.html#openeo.rest.imagecollectionclient.ImageCollectionClient.execute">[docs]</a>    <span class="k">def</span> <span class="nf">execute</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">:</span>
+        <span class="sd">&quot;&quot;&quot;Executes the process graph of the imagery. &quot;&quot;&quot;</span>
+        <span class="n">newbuilder</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">builder</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+        <span class="n">newbuilder</span><span class="o">.</span><span class="n">processes</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">node_id</span><span class="p">][</span><span class="s1">&#39;result&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">execute</span><span class="p">({</span><span class="s2">&quot;process_graph&quot;</span><span class="p">:</span> <span class="n">newbuilder</span><span class="o">.</span><span class="n">processes</span><span class="p">},</span><span class="s2">&quot;&quot;</span><span class="p">)</span></div>
+
+    <span class="c1">####### HELPER methods #######</span>
+
+    <span class="k">def</span> <span class="nf">_graph_merge</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other_graph</span><span class="p">:</span><span class="n">Dict</span><span class="p">):</span>
+        <span class="n">newbuilder</span> <span class="o">=</span> <span class="n">GraphBuilder</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">builder</span><span class="o">.</span><span class="n">processes</span><span class="p">)</span>
+        <span class="n">merged</span> <span class="o">=</span> <span class="n">newbuilder</span><span class="o">.</span><span class="n">merge</span><span class="p">(</span><span class="n">GraphBuilder</span><span class="p">(</span><span class="n">other_graph</span><span class="p">))</span>
+        <span class="c1"># TODO: properly update metadata as well?</span>
+        <span class="n">newCollection</span> <span class="o">=</span> <span class="n">ImageCollectionClient</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">node_id</span><span class="p">,</span> <span class="n">merged</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">session</span><span class="p">,</span> <span class="n">metadata</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">metadata</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">newCollection</span>
+
+<div class="viewcode-block" id="ImageCollectionClient.graph_add_process"><a class="viewcode-back" href="../../../index.html#openeo.rest.imagecollectionclient.ImageCollectionClient.graph_add_process">[docs]</a>    <span class="k">def</span> <span class="nf">graph_add_process</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">process_id</span><span class="p">,</span> <span class="n">args</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s1">&#39;ImageCollection&#39;</span><span class="p">:</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns a new restimagery with an added process with the given process</span>
+<span class="sd">        id and a dictionary of arguments</span>
+<span class="sd">        :param process_id: String, Process Id of the added process.</span>
+<span class="sd">        :param args: Dict, Arguments of the process.</span>
+<span class="sd">        :return: imagery: Instance of the RestImagery class</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1">#don&#39;t modify in place, return new builder</span>
+        <span class="n">newbuilder</span> <span class="o">=</span> <span class="n">GraphBuilder</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">builder</span><span class="o">.</span><span class="n">processes</span><span class="p">)</span>
+        <span class="nb">id</span> <span class="o">=</span> <span class="n">newbuilder</span><span class="o">.</span><span class="n">process</span><span class="p">(</span><span class="n">process_id</span><span class="p">,</span><span class="n">args</span><span class="p">)</span>
+
+        <span class="c1"># TODO: properly update metadata as well?</span>
+        <span class="n">newCollection</span> <span class="o">=</span> <span class="n">ImageCollectionClient</span><span class="p">(</span><span class="nb">id</span><span class="p">,</span> <span class="n">newbuilder</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">session</span><span class="p">,</span> <span class="n">metadata</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">metadata</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">newCollection</span></div>
+
+<div class="viewcode-block" id="ImageCollectionClient.to_graphviz"><a class="viewcode-back" href="../../../index.html#openeo.rest.imagecollectionclient.ImageCollectionClient.to_graphviz">[docs]</a>    <span class="k">def</span> <span class="nf">to_graphviz</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Build a graphviz DiGraph from the process graph</span>
+<span class="sd">        :return:</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="kn">import</span> <span class="nn">graphviz</span>
+        <span class="kn">import</span> <span class="nn">pprint</span>
+
+        <span class="n">graph</span> <span class="o">=</span> <span class="n">graphviz</span><span class="o">.</span><span class="n">Digraph</span><span class="p">(</span><span class="n">node_attr</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;shape&quot;</span><span class="p">:</span> <span class="s2">&quot;none&quot;</span><span class="p">,</span> <span class="s2">&quot;fontname&quot;</span><span class="p">:</span> <span class="s2">&quot;sans&quot;</span><span class="p">,</span> <span class="s2">&quot;fontsize&quot;</span><span class="p">:</span> <span class="s2">&quot;11&quot;</span><span class="p">})</span>
+        <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">process</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">graph</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="n">args</span> <span class="o">=</span> <span class="n">process</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;arguments&quot;</span><span class="p">,</span> <span class="p">{})</span>
+            <span class="c1"># Build label</span>
+            <span class="n">label</span> <span class="o">=</span> <span class="s1">&#39;&lt;&lt;TABLE BORDER=&quot;0&quot; CELLBORDER=&quot;1&quot; CELLSPACING=&quot;0&quot;&gt;&#39;</span>
+            <span class="n">label</span> <span class="o">+=</span> <span class="s1">&#39;&lt;TR&gt;&lt;TD COLSPAN=&quot;2&quot; BGCOLOR=&quot;#eeeeee&quot;&gt;</span><span class="si">{pid}</span><span class="s1">&lt;/TD&gt;&lt;/TR&gt;&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">pid</span><span class="o">=</span><span class="n">process</span><span class="p">[</span><span class="s2">&quot;process_id&quot;</span><span class="p">])</span>
+            <span class="n">label</span> <span class="o">+=</span> <span class="s2">&quot;&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
+                <span class="sd">&#39;&#39;&#39;&lt;TR&gt;&lt;TD ALIGN=&quot;RIGHT&quot;&gt;{arg}&lt;/TD&gt;</span>
+<span class="sd">                       &lt;TD ALIGN=&quot;LEFT&quot;&gt;&lt;FONT FACE=&quot;monospace&quot;&gt;{value}&lt;/FONT&gt;&lt;/TD&gt;&lt;/TR&gt;&#39;&#39;&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                    <span class="n">arg</span><span class="o">=</span><span class="n">k</span><span class="p">,</span> <span class="n">value</span><span class="o">=</span><span class="n">pprint</span><span class="o">.</span><span class="n">pformat</span><span class="p">(</span><span class="n">v</span><span class="p">)[:</span><span class="mi">1000</span><span class="p">]</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">,</span> <span class="s1">&#39;&lt;BR/&gt;&#39;</span><span class="p">)</span>
+                <span class="p">)</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">items</span><span class="p">())</span>
+            <span class="p">)</span>
+            <span class="n">label</span> <span class="o">+=</span> <span class="s1">&#39;&lt;/TABLE&gt;&gt;&#39;</span>
+            <span class="c1"># Add node and edges to graph</span>
+            <span class="n">graph</span><span class="o">.</span><span class="n">node</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="n">label</span><span class="p">)</span>
+            <span class="k">if</span> <span class="s2">&quot;data&quot;</span> <span class="ow">in</span> <span class="n">args</span> <span class="ow">and</span> <span class="s2">&quot;from_node&quot;</span> <span class="ow">in</span> <span class="n">args</span><span class="p">[</span><span class="s2">&quot;data&quot;</span><span class="p">]:</span>
+                <span class="n">graph</span><span class="o">.</span><span class="n">edge</span><span class="p">(</span><span class="n">args</span><span class="p">[</span><span class="s2">&quot;data&quot;</span><span class="p">][</span><span class="s2">&quot;from_node&quot;</span><span class="p">],</span> <span class="n">name</span><span class="p">)</span>
+
+            <span class="c1"># TODO: add subgraph for &quot;callback&quot; arguments?</span>
+
+        <span class="k">return</span> <span class="n">graph</span></div></div>
+</pre></div>
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../../../index.html">openeo</a></h1>
+
+
+
+
+
+
+<p>
+<iframe src="https://ghbtns.com/github-btn.html?user=Open-EO&repo=openeo-python-client&type=watch&count=true&size=large&v=2"
+  allowtransparency="true" frameborder="0" scrolling="0" width="200px" height="35px"></iframe>
+</p>
+
+
+
+
+
+    
+
+<p>
+<a class="badge" href="https://travis-ci.org/Open-EO/openeo-python-client">
+    <img
+        alt="https://secure.travis-ci.org/Open-EO/openeo-python-client.svg?branch=master"
+        src="https://secure.travis-ci.org/Open-EO/openeo-python-client.svg?branch=master"
+    />
+</a>
+</p>
+
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../../index.html">Documentation overview</a><ul>
+  <li><a href="../../index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../search.html" method="get">
+      <div><input type="text" name="q" /></div>
+      <div><input type="submit" value="Go" /></div>
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script><!-- Alabaster (krTheme++) Hacks -->
+
+<!-- CSS Adjustments from requests: https://github.com/kennethreitz/requests/blob/master/docs/_templates/hacks.html-->
+<style type="text/css">
+  /* Rezzy requires precise alignment. */
+  img.logo {margin-left: -20px!important;}
+  /* "Quick Search" should be capitalized. */
+  div#searchbox h3 {text-transform: capitalize;}
+  /* Make the document a little wider, less code is cut-off. */
+  div.document {width: 1008px;}
+  /* Much-improved spacing around code blocks. */
+  div.highlight pre {padding: 11px 14px;}
+  /* Remain Responsive! */
+  @media screen and (max-width: 1008px) {
+    div.sphinxsidebar {display: none;}
+    div.document {width: 100%!important;}
+    /* Have code blocks escape the document right-margin. */
+    div.highlight pre {margin-right: -30px;}
+  }
+</style>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2017, Jeroen Dries.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.6.7</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
+      
+    </div>
+
+    
+    <a href="https://github.com/Open-EO/openeo-python-client" class="github">
+        <img style="position: absolute; top: 0; right: 0; border: 0;" src="https://s3.amazonaws.com/github/ribbons/forkme_right_darkblue_121621.png" alt="Fork me on GitHub"  class="github"/>
+    </a>
+    
+
+    
+  </body>
+</html>

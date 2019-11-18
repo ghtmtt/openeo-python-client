@@ -1,0 +1,941 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>Open-EO Client &#8212; openeo 0.0.1 documentation</title>
+    <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    './',
+        VERSION:     '0.0.1',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head>
+  <body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <div class="section" id="open-eo-client">
+<h1>Open-EO Client<a class="headerlink" href="#open-eo-client" title="Permalink to this headline">¶</a></h1>
+<img alt="https://img.shields.io/badge/Status-proof--of--concept-yellow.svg" src="https://img.shields.io/badge/Status-proof--of--concept-yellow.svg" /></div>
+<div class="section" id="module-openeo">
+<span id="usage"></span><h1>Usage<a class="headerlink" href="#module-openeo" title="Permalink to this headline">¶</a></h1>
+<p>Python Client API for OpenEO backends. This client is a lightweight implementation with limited dependencies on other modules.
+The aim of OpenEO is to process remote sensing data on dedicated processing resources close to the source data.</p>
+<p>This client allows users to communicate with OpenEO backends, in a way that feels familiar for Python programmers.</p>
+<div class="literal-block-wrapper docutils container" id="basic-example">
+<div class="code-block-caption"><span class="caption-text">Basic example</span><a class="headerlink" href="#basic-example" title="Permalink to this code">¶</a></div>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">openeo</span>
+<span class="kn">import</span> <span class="nn">logging</span>
+
+<span class="c1">#enable logging in requests library</span>
+<span class="n">logging</span><span class="o">.</span><span class="n">basicConfig</span><span class="p">(</span><span class="n">level</span><span class="o">=</span><span class="n">logging</span><span class="o">.</span><span class="n">DEBUG</span><span class="p">)</span>
+
+<span class="c1">#connect with VITO backend</span>
+<span class="n">session</span> <span class="o">=</span> <span class="n">openeo</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="s2">&quot;http://openeo.vgt.vito.be/openeo/0.4.0&quot;</span><span class="p">)</span>
+
+<span class="c1">#retrieve the list of available collections</span>
+<span class="n">collections</span> <span class="o">=</span> <span class="n">session</span><span class="o">.</span><span class="n">list_collections</span><span class="p">()</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">collections</span><span class="p">)</span>
+
+<span class="c1">#create image collection</span>
+<span class="n">s2_fapar</span> <span class="o">=</span> <span class="n">session</span><span class="o">.</span><span class="n">imagecollection</span><span class="p">(</span><span class="s2">&quot;BIOPAR_FAPAR_V1_GLOBAL&quot;</span><span class="p">)</span>
+
+<span class="c1">#specify process graph</span>
+<span class="n">download</span> <span class="o">=</span> <span class="n">s2_fapar</span> \
+    <span class="o">.</span><span class="n">filter_bbox</span><span class="p">(</span><span class="n">west</span><span class="o">=</span><span class="mf">16.138916</span><span class="p">,</span> <span class="n">south</span><span class="o">=</span><span class="mf">48.138600</span><span class="p">,</span> <span class="n">east</span><span class="o">=</span><span class="mf">16.524124</span><span class="p">,</span> <span class="n">north</span><span class="o">=</span><span class="mf">48.320647</span><span class="p">,</span> <span class="n">crs</span><span class="o">=</span><span class="s2">&quot;EPSG:4326&quot;</span><span class="p">)</span>  \
+    <span class="o">.</span><span class="n">filter_daterange</span><span class="p">(</span><span class="n">extent</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;2016-01-01T00:00:00Z&quot;</span><span class="p">,</span> <span class="s2">&quot;2016-03-10T23:59:59Z&quot;</span><span class="p">])</span> \
+    <span class="o">.</span><span class="n">max_time</span><span class="p">()</span> \
+    <span class="o">.</span><span class="n">download</span><span class="p">(</span><span class="s2">&quot;/tmp/openeo-composite.geotiff&quot;</span><span class="p">,</span><span class="nb">format</span><span class="o">=</span><span class="s2">&quot;GeoTiff&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">download</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+<div class="toctree-wrapper compound">
+</div>
+<div class="section" id="example-simple-band-math">
+<h2>Example: Simple band math<a class="headerlink" href="#example-simple-band-math" title="Permalink to this headline">¶</a></h2>
+<p>A common task in earth observation, is to apply a formula to a number of bands
+in order to compute an ‘index’, such as NDVI, NDWI, EVI, …</p>
+<p>Begin by importing the openeo module:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">openeo</span>
+</pre></div>
+</div>
+<p>Now we need to connect to a backend:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">connection</span> <span class="o">=</span> <span class="n">openeo</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="s1">&#39;http://openeo.vgt.vito.be/openeo/0.4.0&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Now, we have a <code class="xref py py-class docutils literal"><span class="pre">Connection</span></code> object called <code class="docutils literal"><span class="pre">connection</span></code>. We can
+This object is our entry point to the backend, and allows us to discover its capabilities.</p>
+<p>Information about a backend is most easily found on the OpenEO HUB: <a class="reference external" href="http://hub.openeo.org/">http://hub.openeo.org/</a></p>
+<p>Band math usually starts from a raster data cube, with multiple spectral bands available.
+The backend used here has a Sentinel-2 collection: CGS_SENTINEL2_RADIOMETRY_V102_001</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">sentinel2_data_cube</span> <span class="o">=</span> <span class="n">connection</span><span class="o">.</span><span class="n">imagecollection</span><span class="p">(</span><span class="s2">&quot;CGS_SENTINEL2_RADIOMETRY_V102_001&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Now we have a <code class="xref py py-class docutils literal"><span class="pre">ImageCollection</span></code> object called <code class="docutils literal"><span class="pre">sentinel2_data_cube</span></code>.
+Creating this object does not yet load any data, but virtually it can contain quite a lot of data.
+Therefore, we need to filter it before we can use it:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">sentinel2_data_cube</span> <span class="o">=</span> <span class="n">sentinel2_data_cube</span><span class="o">.</span><span class="n">filter_daterange</span><span class="p">(</span><span class="n">extent</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;2016-01-01&quot;</span><span class="p">,</span><span class="s2">&quot;2016-03-10&quot;</span><span class="p">])</span> \
+<span class="go">                           .filter_bbox(west=5.15183687210083,east=5.153381824493408,south=51.18192559252128,north=51.18469636040683,crs=&quot;EPSG:4326&quot;)</span>
+</pre></div>
+</div>
+<p>On this data cube, we can now select the individual bands:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">B02</span> <span class="o">=</span> <span class="n">sentinel2_data_cube</span><span class="o">.</span><span class="n">band</span><span class="p">(</span><span class="s1">&#39;2&#39;</span><span class="p">)</span>
+<span class="go">    B04 = sentinel2_data_cube.band(&#39;4&#39;)</span>
+<span class="go">    B08 = sentinel2_data_cube.band(&#39;8&#39;)</span>
+</pre></div>
+</div>
+<p>In this example, we’ll compute the enhanced vegetation index (EVI):</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">evi_cube</span> <span class="o">=</span> <span class="p">(</span><span class="mf">2.5</span> <span class="o">*</span> <span class="p">(</span><span class="n">B08</span> <span class="o">-</span> <span class="n">B04</span><span class="p">))</span> <span class="o">/</span> <span class="p">((</span><span class="n">B08</span> <span class="o">+</span> <span class="mf">6.0</span> <span class="o">*</span> <span class="n">B04</span> <span class="o">-</span> <span class="mf">7.5</span> <span class="o">*</span> <span class="n">B02</span><span class="p">)</span> <span class="o">+</span> <span class="mf">1.0</span><span class="p">)</span>
+<span class="go">    evi_cube.download(&quot;out.geotiff&quot;,format=&quot;GeoTIFF&quot;)</span>
+</pre></div>
+</div>
+<div class="section" id="example-applying-a-mask">
+<h3>Example: Applying a mask<a class="headerlink" href="#example-applying-a-mask" title="Permalink to this headline">¶</a></h3>
+<p>It is very common for earth observation data to have separate masking layers that for instance indicate
+whether a pixel is covered by a (type of) cloud or not. For Sentinel-2, one such layer is the ‘scene classification’
+layer that is generated by the Sen2Cor algorithm. In this example, we will use this layer to mask clouds out of our data.</p>
+<p>First we load data, and create a binary mask. Vegetation pixels have a value of ‘4’ in the scene classification, so we set these
+pixels to 0 and all other pixels to 1 using a simple comparison:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">s2_sceneclassification</span> <span class="o">=</span> <span class="n">session</span><span class="o">.</span><span class="n">imagecollection</span><span class="p">(</span><span class="s2">&quot;S2_FAPAR_SCENECLASSIFICATION_V102_PYRAMID&quot;</span><span class="p">)</span> \
+<span class="go">                        .filter_daterange(extent=[&quot;2016-01-01&quot;,&quot;2016-03-10&quot;]) \</span>
+<span class="go">                       .filter_bbox(west=5.15183687210083,east=5.153381824493408,south=51.18192559252128,north=51.18469636040683,crs=&quot;EPSG:4326&quot;)</span>
+
+<span class="go">   mask = s2_sceneclassification.band(&#39;classification&#39;)</span>
+
+<span class="go">   mask = mask != 4</span>
+<span class="go">   mask</span>
+</pre></div>
+</div>
+<p>Once the mask is created, it can be applied to the cube:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">evi_cube_masked</span> <span class="o">=</span> <span class="n">evi_cube</span><span class="o">.</span><span class="n">mask</span><span class="p">(</span><span class="n">rastermask</span><span class="o">=</span><span class="n">mask</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="section" id="example-smoothing-timeseries-with-a-user-defined-function-udf">
+<h2>Example: Smoothing timeseries with a user defined function (UDF)<a class="headerlink" href="#example-smoothing-timeseries-with-a-user-defined-function-udf" title="Permalink to this headline">¶</a></h2>
+<p>User defined functions are a very important feature of OpenEO. They allow you as a user to
+reuse existing code, by submitting it to the backend.</p>
+<p>In this example, we start from the ‘evi_cube’ that was created in the previous example, and want to
+apply a temporal smoothing on it. More specifically, we want to use the “Savitzky Golay” smoother
+that is available in the SciPy Python library.</p>
+<p>The user defined function implementation needs to follow a specification, that is defined here:
+<a class="reference external" href="https://github.com/Open-EO/openeo-udf">https://github.com/Open-EO/openeo-udf</a></p>
+<p>This is an example that follows the spec:</p>
+<div class="literal-block-wrapper docutils container" id="savgol-udf">
+<div class="code-block-caption"><span class="caption-text">UDF code</span><a class="headerlink" href="#savgol-udf" title="Permalink to this code">¶</a></div>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="c1"># -*- coding: utf-8 -*-</span>
+<span class="c1"># Uncomment the import only for coding support</span>
+<span class="c1">#from openeo_udf.api.base import SpatialExtent, RasterCollectionTile, FeatureCollectionTile, UdfData</span>
+
+<span class="n">__license__</span> <span class="o">=</span> <span class="s2">&quot;Apache License, Version 2.0&quot;</span>
+
+
+<span class="k">def</span> <span class="nf">rct_savitzky_golay</span><span class="p">(</span><span class="n">udf_data</span><span class="p">):</span>
+    <span class="kn">from</span> <span class="nn">scipy.signal</span> <span class="k">import</span> <span class="n">savgol_filter</span>
+    <span class="kn">import</span> <span class="nn">pandas</span> <span class="k">as</span> <span class="nn">pd</span>
+    <span class="c1"># Iterate over each tile</span>
+    <span class="k">for</span> <span class="n">tile</span> <span class="ow">in</span> <span class="n">udf_data</span><span class="o">.</span><span class="n">raster_collection_tiles</span><span class="p">:</span>
+        <span class="n">timeseries_array</span> <span class="o">=</span> <span class="n">tile</span><span class="o">.</span><span class="n">data</span>
+        <span class="c1">#TODO: savitzky golay implementation assumes regularly spaced samples!</span>
+
+        <span class="c1">#first we ensure that there are no nodata values in our input, as this will cause everything to become nodata.</span>
+        <span class="n">array_2d</span> <span class="o">=</span> <span class="n">timeseries_array</span><span class="o">.</span><span class="n">reshape</span><span class="p">((</span><span class="n">timeseries_array</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">timeseries_array</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">*</span> <span class="n">timeseries_array</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">2</span><span class="p">]))</span>
+
+        <span class="n">df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span><span class="n">array_2d</span><span class="p">)</span>
+        <span class="c1">#df.fillna(method=&#39;ffill&#39;, axis=0, inplace=True)</span>
+        <span class="n">df</span><span class="o">.</span><span class="n">interpolate</span><span class="p">(</span><span class="n">inplace</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+        <span class="n">filled</span><span class="o">=</span><span class="n">df</span><span class="o">.</span><span class="n">as_matrix</span><span class="p">()</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">timeseries_array</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+
+        <span class="c1">#now apply savitzky golay on filled data</span>
+        <span class="n">smoothed_array</span> <span class="o">=</span> <span class="n">savgol_filter</span><span class="p">(</span><span class="n">filled</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+        <span class="c1">#print(smoothed_array)</span>
+        <span class="n">tile</span><span class="o">.</span><span class="n">set_data</span><span class="p">(</span><span class="n">smoothed_array</span><span class="p">)</span>
+
+
+<span class="c1"># This function call is the entry point for the UDF.</span>
+<span class="c1"># The caller will provide all required data in the **data** object.</span>
+<span class="n">rct_savitzky_golay</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+<p>Once the UDF is defined in a separate file, we need to load it:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="k">def</span> <span class="nf">get_resource</span><span class="p">(</span><span class="n">relative_path</span><span class="p">):</span>
+<span class="go">        return str(Path( relative_path))</span>
+
+<span class="go">    def load_udf(relative_path):</span>
+<span class="go">        import json</span>
+<span class="go">        with open(get_resource(relative_path), &#39;r+&#39;) as f:</span>
+<span class="go">            return f.read()</span>
+
+<span class="go">    smoothing_udf = load_udf(&#39;udf/smooth_savitzky_golay.py&#39;)</span>
+<span class="go">    print(smoothing_udf)</span>
+</pre></div>
+</div>
+<p>after that, we can simply apply it along a dimension:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">smoothed_evi</span> <span class="o">=</span> <span class="n">evi_cube_masked</span><span class="o">.</span><span class="n">apply_dimension</span><span class="p">(</span><span class="n">smoothing_udf</span><span class="p">,</span><span class="n">runtime</span><span class="o">=</span><span class="s1">&#39;Python&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="section" id="api">
+<h1>API<a class="headerlink" href="#api" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="high-level-interface">
+<h2>High level Interface<a class="headerlink" href="#high-level-interface" title="Permalink to this headline">¶</a></h2>
+<p>The high-level interface tries to provide an opinionated, Pythonic, API
+to interact with OpenEO backends. It’s aim is to hide some of the details
+of using a web service, so the user can produce concise and readable code.</p>
+<p>Users that want to interact with OpenEO on a lower level, and have more control, can
+use the lower level classes.</p>
+<dl class="function">
+<dt id="openeo.connect">
+<code class="descclassname">openeo.</code><code class="descname">connect</code><span class="sig-paren">(</span><em>url</em>, <em>auth_type: str = None</em>, <em>auth_options: dict = {}</em>, <em>session: requests.sessions.Session = None</em><span class="sig-paren">)</span> &#x2192; openeo.rest.connection.Connection<a class="reference internal" href="_modules/openeo/rest/connection.html#connect"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#openeo.connect" title="Permalink to this definition">¶</a></dt>
+<dd><p>This method is the entry point to OpenEO.
+You typically create one connection object in your script or application
+and re-use it for all calls to that backend.</p>
+<p>If the backend requires authentication, you should can pass authentication data directly to this function
+but it could be easier to authenticate as follows:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># For basic authentication</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">conn</span> <span class="o">=</span> <span class="n">connect</span><span class="p">(</span><span class="n">url</span><span class="p">)</span><span class="o">.</span><span class="n">authenticate_basic</span><span class="p">(</span><span class="n">username</span><span class="o">=</span><span class="s2">&quot;john&quot;</span><span class="p">,</span> <span class="n">password</span><span class="o">=</span><span class="s2">&quot;foo&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># For OpenID Connect authentication</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">conn</span> <span class="o">=</span> <span class="n">connect</span><span class="p">(</span><span class="n">url</span><span class="p">)</span><span class="o">.</span><span class="n">authenticate_OIDC</span><span class="p">(</span><span class="n">client_id</span><span class="o">=</span><span class="s2">&quot;myclient&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>url</strong> – The http url of an OpenEO endpoint.</li>
+<li><strong>auth_type</strong> (<code class="docutils literal"><span class="pre">str</span></code>) – Which authentication to use: None, “basic” or “oidc” (for OpenID Connect)</li>
+<li><strong>auth_options</strong> (<code class="docutils literal"><span class="pre">dict</span></code>) – Options/arguments specific to the authentication type</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Return type:</th><td class="field-body"><p class="first last">openeo.connections.Connection</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</div>
+<div class="section" id="openeo-rest-connection">
+<h2>openeo.rest.connection<a class="headerlink" href="#openeo-rest-connection" title="Permalink to this headline">¶</a></h2>
+<span class="target" id="module-openeo.rest.connection"></span><p>This module provides a Connection object to manage and persist settings when interacting with the OpenEO API.</p>
+</div>
+<div class="section" id="openeo-rest-imagecollectionclient">
+<h2>openeo.rest.imagecollectionclient<a class="headerlink" href="#openeo-rest-imagecollectionclient" title="Permalink to this headline">¶</a></h2>
+<span class="target" id="module-openeo.rest.imagecollectionclient"></span><dl class="class">
+<dt id="openeo.rest.imagecollectionclient.ImageCollectionClient">
+<em class="property">class </em><code class="descclassname">openeo.rest.imagecollectionclient.</code><code class="descname">ImageCollectionClient</code><a class="reference internal" href="_modules/openeo/rest/imagecollectionclient.html#ImageCollectionClient"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#openeo.rest.imagecollectionclient.ImageCollectionClient" title="Permalink to this definition">¶</a></dt>
+<dd><p>Class representing an Image Collection. (In the API as ‘imagery’)
+Supports 0.4.</p>
+<dl class="method">
+<dt id="openeo.rest.imagecollectionclient.ImageCollectionClient.add">
+<code class="descname">add</code><span class="sig-paren">(</span><em>other: typing.Union[openeo.imagecollection.ImageCollection, int, float]</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/openeo/rest/imagecollectionclient.html#ImageCollectionClient.add"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#openeo.rest.imagecollectionclient.ImageCollectionClient.add" title="Permalink to this definition">¶</a></dt>
+<dd><p>Pairwise addition of the bands in this data cube with the bands in the ‘other’ data cube.
+The number of bands in both data cubes has to be the same.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>other</strong> – </td>
+</tr>
+<tr class="field-even field"><th class="field-name" colspan="2">Return ImageCollection:</th></tr>
+<tr class="field-even field"><td>&#160;</td><td class="field-body">this + other</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="openeo.rest.imagecollectionclient.ImageCollectionClient.apply_dimension">
+<code class="descname">apply_dimension</code><span class="sig-paren">(</span><em>code: str</em>, <em>runtime=None</em>, <em>version='latest'</em>, <em>dimension='temporal'</em><span class="sig-paren">)</span> &#x2192; openeo.imagecollection.ImageCollection<a class="reference internal" href="_modules/openeo/rest/imagecollectionclient.html#ImageCollectionClient.apply_dimension"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#openeo.rest.imagecollectionclient.ImageCollectionClient.apply_dimension" title="Permalink to this definition">¶</a></dt>
+<dd><p>Applies an n-ary process (i.e. takes an array of pixel values instead of a single pixel value) to a raster data cube.
+In contrast, the process apply applies an unary process to all pixel values.</p>
+<p>By default, apply_dimension applies the the process on all pixel values in the data cube as apply does, but the parameter dimension can be specified to work only on a particular dimension only. For example, if the temporal dimension is specified the process will work on a time series of pixel values.</p>
+<p>The n-ary process must return as many elements in the returned array as there are in the input array. Otherwise a CardinalityChanged error must be returned.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>code</strong> (<code class="docutils literal"><span class="pre">str</span></code>) – UDF code or process identifier</li>
+<li><strong>runtime</strong> – </li>
+<li><strong>version</strong> (<code class="docutils literal"><span class="pre">str</span></code>) – </li>
+<li><strong>dimension</strong> (<code class="docutils literal"><span class="pre">str</span></code>) – </li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first"></p>
+</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Raises:</th><td class="field-body"><p class="first last">CardinalityChangedError</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="openeo.rest.imagecollectionclient.ImageCollectionClient.apply_kernel">
+<code class="descname">apply_kernel</code><span class="sig-paren">(</span><em>kernel</em>, <em>factor=1.0</em><span class="sig-paren">)</span> &#x2192; openeo.imagecollection.ImageCollection<a class="reference internal" href="_modules/openeo/rest/imagecollectionclient.html#ImageCollectionClient.apply_kernel"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#openeo.rest.imagecollectionclient.ImageCollectionClient.apply_kernel" title="Permalink to this definition">¶</a></dt>
+<dd><p>Applies a focal operation based on a weighted kernel to each value of the specified dimensions in the data cube.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>kernel</strong> – The kernel to be applied on the data cube. It should be a 2D numpy array.</li>
+<li><strong>factor</strong> (<code class="docutils literal"><span class="pre">float</span></code>) – A factor that is multiplied to each value computed by the focal operation. This is basically a shortcut for explicitly multiplying each value by a factor afterwards, which is often required for some kernel-based algorithms such as the Gaussian blur.</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first last">A data cube with the newly computed values. The resolution, cardinality and the number of dimensions are the same as for the original data cube.</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="openeo.rest.imagecollectionclient.ImageCollectionClient.apply_tiles">
+<code class="descname">apply_tiles</code><span class="sig-paren">(</span><em>code: str</em>, <em>runtime='Python'</em>, <em>version='latest'</em><span class="sig-paren">)</span> &#x2192; openeo.imagecollection.ImageCollection<a class="reference internal" href="_modules/openeo/rest/imagecollectionclient.html#ImageCollectionClient.apply_tiles"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#openeo.rest.imagecollectionclient.ImageCollectionClient.apply_tiles" title="Permalink to this definition">¶</a></dt>
+<dd><p>Apply a function to the given set of tiles in this image collection.</p>
+<p>This type applies a simple function to one pixel of the input image or image collection.
+The function gets the value of one pixel (including all bands) as input and produces a single scalar or tuple output.
+The result has the same schema as the input image (collection) but different bands.
+Examples include the computation of vegetation indexes or filtering cloudy pixels.</p>
+<p>Code should follow the OpenEO UDF conventions.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>code</strong> (<code class="docutils literal"><span class="pre">str</span></code>) – String representing Python code to be executed in the backend.</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="openeo.rest.imagecollectionclient.ImageCollectionClient.band">
+<code class="descname">band</code><span class="sig-paren">(</span><em>band: typing.Union[str, int]</em><span class="sig-paren">)</span> &#x2192; openeo.imagecollection.ImageCollection<a class="reference internal" href="_modules/openeo/rest/imagecollectionclient.html#ImageCollectionClient.band"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#openeo.rest.imagecollectionclient.ImageCollectionClient.band" title="Permalink to this definition">¶</a></dt>
+<dd><p>Filter the imagery by the given bands
+:param band: band name, band common name or band index.
+:return An ImageCollection instance</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="openeo.rest.imagecollectionclient.ImageCollectionClient.count_time">
+<code class="descname">count_time</code><span class="sig-paren">(</span><span class="sig-paren">)</span> &#x2192; openeo.imagecollection.ImageCollection<a class="reference internal" href="_modules/openeo/rest/imagecollectionclient.html#ImageCollectionClient.count_time"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#openeo.rest.imagecollectionclient.ImageCollectionClient.count_time" title="Permalink to this definition">¶</a></dt>
+<dd><p>Counts the number of images with a valid mask in a time series for all bands of the input dataset.
+:return An ImageCollection instance</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="openeo.rest.imagecollectionclient.ImageCollectionClient.divide">
+<code class="descname">divide</code><span class="sig-paren">(</span><em>other: typing.Union[openeo.imagecollection.ImageCollection, int, float]</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/openeo/rest/imagecollectionclient.html#ImageCollectionClient.divide"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#openeo.rest.imagecollectionclient.ImageCollectionClient.divide" title="Permalink to this definition">¶</a></dt>
+<dd><p>Subtraction other from this datacube, so the result is: this - other
+The number of bands in both data cubes has to be the same.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>other</strong> – </td>
+</tr>
+<tr class="field-even field"><th class="field-name" colspan="2">Return ImageCollection:</th></tr>
+<tr class="field-even field"><td>&#160;</td><td class="field-body">this - other</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="openeo.rest.imagecollectionclient.ImageCollectionClient.download">
+<code class="descname">download</code><span class="sig-paren">(</span><em>outputfile: str</em>, <em>**format_options</em><span class="sig-paren">)</span> &#x2192; str<a class="reference internal" href="_modules/openeo/rest/imagecollectionclient.html#ImageCollectionClient.download"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#openeo.rest.imagecollectionclient.ImageCollectionClient.download" title="Permalink to this definition">¶</a></dt>
+<dd><p>Extracts a geotiff from this image collection.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="openeo.rest.imagecollectionclient.ImageCollectionClient.execute">
+<code class="descname">execute</code><span class="sig-paren">(</span><span class="sig-paren">)</span> &#x2192; typing.Dict<a class="reference internal" href="_modules/openeo/rest/imagecollectionclient.html#ImageCollectionClient.execute"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#openeo.rest.imagecollectionclient.ImageCollectionClient.execute" title="Permalink to this definition">¶</a></dt>
+<dd><p>Executes the process graph of the imagery.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="openeo.rest.imagecollectionclient.ImageCollectionClient.execute_batch">
+<code class="descname">execute_batch</code><span class="sig-paren">(</span><em>outputfile: str</em>, <em>out_format: str = None</em>, <em>print=&lt;built-in function print&gt;</em>, <em>max_poll_interval=60</em>, <em>connection_retry_interval=30</em>, <em>**format_options</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/openeo/rest/imagecollectionclient.html#ImageCollectionClient.execute_batch"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#openeo.rest.imagecollectionclient.ImageCollectionClient.execute_batch" title="Permalink to this definition">¶</a></dt>
+<dd><p>Evaluate the process graph by creating a batch job, and retrieving the results when it is finished.
+This method is mostly recommended if the batch job is expected to run in a reasonable amount of time.</p>
+<p>For very long running jobs, you probably do not want to keep the client running.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>outputfile</strong> (<code class="docutils literal"><span class="pre">str</span></code>) – The path of a file to which a result can be written</li>
+<li><strong>out_format</strong> (<code class="docutils literal"><span class="pre">str</span></code>) – String Format of the job result.</li>
+<li><strong>format_options</strong> – String Parameters for the job result format</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="openeo.rest.imagecollectionclient.ImageCollectionClient.filter_bands">
+<code class="descname">filter_bands</code><span class="sig-paren">(</span><em>bands: typing.List[typing.Union[str, int]]</em><span class="sig-paren">)</span> &#x2192; openeo.imagecollection.ImageCollection<a class="reference internal" href="_modules/openeo/rest/imagecollectionclient.html#ImageCollectionClient.filter_bands"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#openeo.rest.imagecollectionclient.ImageCollectionClient.filter_bands" title="Permalink to this definition">¶</a></dt>
+<dd><p>Filter the imagery by the given bands
+:rtype: <code class="xref py py-class docutils literal"><span class="pre">ImageCollection</span></code>
+:param bands: List of band names or single band name as a string.
+:return An ImageCollection instance</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="openeo.rest.imagecollectionclient.ImageCollectionClient.graph_add_process">
+<code class="descname">graph_add_process</code><span class="sig-paren">(</span><em>process_id</em>, <em>args</em><span class="sig-paren">)</span> &#x2192; openeo.imagecollection.ImageCollection<a class="reference internal" href="_modules/openeo/rest/imagecollectionclient.html#ImageCollectionClient.graph_add_process"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#openeo.rest.imagecollectionclient.ImageCollectionClient.graph_add_process" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns a new restimagery with an added process with the given process
+id and a dictionary of arguments
+:param process_id: String, Process Id of the added process.
+:param args: Dict, Arguments of the process.
+:return: imagery: Instance of the RestImagery class</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="openeo.rest.imagecollectionclient.ImageCollectionClient.linear_scale_range">
+<code class="descname">linear_scale_range</code><span class="sig-paren">(</span><em>input_min</em>, <em>input_max</em>, <em>output_min</em>, <em>output_max</em><span class="sig-paren">)</span> &#x2192; openeo.imagecollection.ImageCollection<a class="reference internal" href="_modules/openeo/rest/imagecollectionclient.html#ImageCollectionClient.linear_scale_range"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#openeo.rest.imagecollectionclient.ImageCollectionClient.linear_scale_range" title="Permalink to this definition">¶</a></dt>
+<dd><p>Color stretching
+:param input_min: Minimum input value
+:param input_max: Maximum input value
+:param output_min: Minimum output value
+:param output_max: Maximum output value
+:return An ImageCollection instance</p>
+</dd></dl>
+
+<dl class="classmethod">
+<dt id="openeo.rest.imagecollectionclient.ImageCollectionClient.load_collection">
+<em class="property">classmethod </em><code class="descname">load_collection</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/openeo/rest/imagecollectionclient.html#ImageCollectionClient.load_collection"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#openeo.rest.imagecollectionclient.ImageCollectionClient.load_collection" title="Permalink to this definition">¶</a></dt>
+<dd><p>Create a new Image Collection/Raster Data cube.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>collection_id</strong> (<code class="docutils literal"><span class="pre">str</span></code>) – A collection id, should exist in the backend.</li>
+<li><strong>session</strong> – The session to use to connect with the backend.</li>
+<li><strong>spatial_extent</strong> – limit data to specified bounding box or polygons</li>
+<li><strong>temporal_extent</strong> – limit data to specified temporal interval</li>
+<li><strong>bands</strong> – only add the specified bands</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first last"></p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="classmethod">
+<dt id="openeo.rest.imagecollectionclient.ImageCollectionClient.load_disk_collection">
+<em class="property">classmethod </em><code class="descname">load_disk_collection</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/openeo/rest/imagecollectionclient.html#ImageCollectionClient.load_disk_collection"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#openeo.rest.imagecollectionclient.ImageCollectionClient.load_disk_collection" title="Permalink to this definition">¶</a></dt>
+<dd><p>Loads image data from disk as an ImageCollection.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>session</strong> – The session to use to connect with the backend.</li>
+<li><strong>file_format</strong> (<code class="docutils literal"><span class="pre">str</span></code>) – the file format, e.g. ‘GTiff’</li>
+<li><strong>glob_pattern</strong> (<code class="docutils literal"><span class="pre">str</span></code>) – a glob pattern that matches the files to load from disk</li>
+<li><strong>options</strong> – options specific to the file format</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first last">the data as an ImageCollection</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="openeo.rest.imagecollectionclient.ImageCollectionClient.logical_and">
+<code class="descname">logical_and</code><span class="sig-paren">(</span><em>other: openeo.imagecollection.ImageCollection</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/openeo/rest/imagecollectionclient.html#ImageCollectionClient.logical_and"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#openeo.rest.imagecollectionclient.ImageCollectionClient.logical_and" title="Permalink to this definition">¶</a></dt>
+<dd><p>Apply element-wise logical <cite>and</cite> operation
+:type other: <code class="xref py py-class docutils literal"><span class="pre">ImageCollection</span></code>
+:param other:
+:return ImageCollection: logical_and(this, other)</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="openeo.rest.imagecollectionclient.ImageCollectionClient.logical_or">
+<code class="descname">logical_or</code><span class="sig-paren">(</span><em>other: openeo.imagecollection.ImageCollection</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/openeo/rest/imagecollectionclient.html#ImageCollectionClient.logical_or"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#openeo.rest.imagecollectionclient.ImageCollectionClient.logical_or" title="Permalink to this definition">¶</a></dt>
+<dd><p>Apply element-wise logical <cite>or</cite> operation
+:type other: <code class="xref py py-class docutils literal"><span class="pre">ImageCollection</span></code>
+:param other:
+:return ImageCollection: logical_or(this, other)</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="openeo.rest.imagecollectionclient.ImageCollectionClient.mask">
+<code class="descname">mask</code><span class="sig-paren">(</span><em>polygon: typing.Union[shapely.geometry.polygon.Polygon</em>, <em>shapely.geometry.multipolygon.MultiPolygon</em>, <em>str] = None</em>, <em>srs='EPSG:4326'</em>, <em>rastermask: typing.Union[openeo.imagecollection.ImageCollection</em>, <em>NoneType] = None</em>, <em>replacement=None</em><span class="sig-paren">)</span> &#x2192; openeo.imagecollection.ImageCollection<a class="reference internal" href="_modules/openeo/rest/imagecollectionclient.html#ImageCollectionClient.mask"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#openeo.rest.imagecollectionclient.ImageCollectionClient.mask" title="Permalink to this definition">¶</a></dt>
+<dd><p>Mask the image collection using either a polygon or a raster mask.</p>
+<p>All pixels outside the polygon should be set to the nodata value.
+All pixels inside, or intersecting the polygon should retain their original value.</p>
+<p>All pixels are replaced for which the corresponding pixels in the mask are non-zero (for numbers) or True
+(for boolean values).</p>
+<p>The pixel values are replaced with the value specified for replacement, which defaults to None (no data).
+No data values will be left untouched by the masking operation.</p>
+<p># TODO: just provide a single <cite>mask</cite> argument and detect the type: polygon or process graph</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>polygon</strong> – A polygon, provided as a <code class="xref py py-class docutils literal"><span class="pre">shapely.geometry.Polygon</span></code> or <code class="xref py py-class docutils literal"><span class="pre">shapely.geometry.MultiPolygon</span></code>, or a filename pointing to a valid vector file</li>
+<li><strong>srs</strong> (<code class="docutils literal"><span class="pre">str</span></code>) – The reference system of the provided polygon, by default this is Lat Lon (EPSG:4326).</li>
+<li><strong>rastermask</strong> – the raster mask</li>
+<li><strong>replacement</strong> – the value to replace the masked pixels with</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Raise:</th><td class="field-body"><p class="first"><code class="xref py py-class docutils literal"><span class="pre">ValueError</span></code> if a polygon is supplied and its area is 0.</p>
+</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body"><p class="first last">A new ImageCollection, with the mask applied.</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="openeo.rest.imagecollectionclient.ImageCollectionClient.max_time">
+<code class="descname">max_time</code><span class="sig-paren">(</span><span class="sig-paren">)</span> &#x2192; openeo.imagecollection.ImageCollection<a class="reference internal" href="_modules/openeo/rest/imagecollectionclient.html#ImageCollectionClient.max_time"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#openeo.rest.imagecollectionclient.ImageCollectionClient.max_time" title="Permalink to this definition">¶</a></dt>
+<dd><p>Finds the maximum value of a time series for all bands of the input dataset.
+:return An ImageCollection instance</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="openeo.rest.imagecollectionclient.ImageCollectionClient.mean_time">
+<code class="descname">mean_time</code><span class="sig-paren">(</span><span class="sig-paren">)</span> &#x2192; openeo.imagecollection.ImageCollection<a class="reference internal" href="_modules/openeo/rest/imagecollectionclient.html#ImageCollectionClient.mean_time"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#openeo.rest.imagecollectionclient.ImageCollectionClient.mean_time" title="Permalink to this definition">¶</a></dt>
+<dd><p>Finds the mean value of a time series for all bands of the input dataset.
+:return An ImageCollection instance</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="openeo.rest.imagecollectionclient.ImageCollectionClient.median_time">
+<code class="descname">median_time</code><span class="sig-paren">(</span><span class="sig-paren">)</span> &#x2192; openeo.imagecollection.ImageCollection<a class="reference internal" href="_modules/openeo/rest/imagecollectionclient.html#ImageCollectionClient.median_time"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#openeo.rest.imagecollectionclient.ImageCollectionClient.median_time" title="Permalink to this definition">¶</a></dt>
+<dd><p>Finds the median value of a time series for all bands of the input dataset.
+:return An ImageCollection instance</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="openeo.rest.imagecollectionclient.ImageCollectionClient.min_time">
+<code class="descname">min_time</code><span class="sig-paren">(</span><span class="sig-paren">)</span> &#x2192; openeo.imagecollection.ImageCollection<a class="reference internal" href="_modules/openeo/rest/imagecollectionclient.html#ImageCollectionClient.min_time"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#openeo.rest.imagecollectionclient.ImageCollectionClient.min_time" title="Permalink to this definition">¶</a></dt>
+<dd><p>Finds the minimum value of a time series for all bands of the input dataset.
+:return An ImageCollection instance</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="openeo.rest.imagecollectionclient.ImageCollectionClient.ndvi">
+<code class="descname">ndvi</code><span class="sig-paren">(</span><em>name='ndvi'</em><span class="sig-paren">)</span> &#x2192; openeo.imagecollection.ImageCollection<a class="reference internal" href="_modules/openeo/rest/imagecollectionclient.html#ImageCollectionClient.ndvi"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#openeo.rest.imagecollectionclient.ImageCollectionClient.ndvi" title="Permalink to this definition">¶</a></dt>
+<dd><p>NDVI</p>
+<p>:return An ImageCollection instance</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="openeo.rest.imagecollectionclient.ImageCollectionClient.polygonal_histogram_timeseries">
+<code class="descname">polygonal_histogram_timeseries</code><span class="sig-paren">(</span><em>polygon: typing.Union[shapely.geometry.polygon.Polygon, shapely.geometry.multipolygon.MultiPolygon, str]</em><span class="sig-paren">)</span> &#x2192; typing.Dict<a class="reference internal" href="_modules/openeo/rest/imagecollectionclient.html#ImageCollectionClient.polygonal_histogram_timeseries"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#openeo.rest.imagecollectionclient.ImageCollectionClient.polygonal_histogram_timeseries" title="Permalink to this definition">¶</a></dt>
+<dd><p>Extract a histogram time series for the given (multi)polygon. Its points are
+expected to be in the EPSG:4326 coordinate
+reference system.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>polygon</strong> – The (multi)polygon; or a file path or HTTP URL to a GeoJSON file or shape file</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body">ImageCollection</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="openeo.rest.imagecollectionclient.ImageCollectionClient.polygonal_mean_timeseries">
+<code class="descname">polygonal_mean_timeseries</code><span class="sig-paren">(</span><em>polygon: typing.Union[shapely.geometry.polygon.Polygon, shapely.geometry.multipolygon.MultiPolygon, str]</em><span class="sig-paren">)</span> &#x2192; openeo.imagecollection.ImageCollection<a class="reference internal" href="_modules/openeo/rest/imagecollectionclient.html#ImageCollectionClient.polygonal_mean_timeseries"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#openeo.rest.imagecollectionclient.ImageCollectionClient.polygonal_mean_timeseries" title="Permalink to this definition">¶</a></dt>
+<dd><p>Extract a mean time series for the given (multi)polygon. Its points are
+expected to be in the EPSG:4326 coordinate
+reference system.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>polygon</strong> – The (multi)polygon; or a file path or HTTP URL to a GeoJSON file or shape file</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body">ImageCollection</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="openeo.rest.imagecollectionclient.ImageCollectionClient.polygonal_median_timeseries">
+<code class="descname">polygonal_median_timeseries</code><span class="sig-paren">(</span><em>polygon: typing.Union[shapely.geometry.polygon.Polygon, shapely.geometry.multipolygon.MultiPolygon, str]</em><span class="sig-paren">)</span> &#x2192; typing.Dict<a class="reference internal" href="_modules/openeo/rest/imagecollectionclient.html#ImageCollectionClient.polygonal_median_timeseries"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#openeo.rest.imagecollectionclient.ImageCollectionClient.polygonal_median_timeseries" title="Permalink to this definition">¶</a></dt>
+<dd><p>Extract a median time series for the given (multi)polygon. Its points are
+expected to be in the EPSG:4326 coordinate
+reference system.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>polygon</strong> – The (multi)polygon; or a file path or HTTP URL to a GeoJSON file or shape file</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body">ImageCollection</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="openeo.rest.imagecollectionclient.ImageCollectionClient.polygonal_standarddeviation_timeseries">
+<code class="descname">polygonal_standarddeviation_timeseries</code><span class="sig-paren">(</span><em>polygon: typing.Union[shapely.geometry.polygon.Polygon, shapely.geometry.multipolygon.MultiPolygon, str]</em><span class="sig-paren">)</span> &#x2192; typing.Dict<a class="reference internal" href="_modules/openeo/rest/imagecollectionclient.html#ImageCollectionClient.polygonal_standarddeviation_timeseries"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#openeo.rest.imagecollectionclient.ImageCollectionClient.polygonal_standarddeviation_timeseries" title="Permalink to this definition">¶</a></dt>
+<dd><p>Extract a time series of standard deviations for the given (multi)polygon. Its points are
+expected to be in the EPSG:4326 coordinate
+reference system.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>polygon</strong> – The (multi)polygon; or a file path or HTTP URL to a GeoJSON file or shape file</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body">ImageCollection</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="openeo.rest.imagecollectionclient.ImageCollectionClient.product">
+<code class="descname">product</code><span class="sig-paren">(</span><em>other: typing.Union[openeo.imagecollection.ImageCollection, int, float]</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/openeo/rest/imagecollectionclient.html#ImageCollectionClient.product"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#openeo.rest.imagecollectionclient.ImageCollectionClient.product" title="Permalink to this definition">¶</a></dt>
+<dd><p>Multiply other with this datacube, so the result is: this * other
+The number of bands in both data cubes has to be the same.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>other</strong> – </td>
+</tr>
+<tr class="field-even field"><th class="field-name" colspan="2">Return ImageCollection:</th></tr>
+<tr class="field-even field"><td>&#160;</td><td class="field-body">this - other</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="openeo.rest.imagecollectionclient.ImageCollectionClient.reduce_tiles_over_time">
+<code class="descname">reduce_tiles_over_time</code><span class="sig-paren">(</span><em>code: str</em>, <em>runtime='Python'</em>, <em>version='latest'</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/openeo/rest/imagecollectionclient.html#ImageCollectionClient.reduce_tiles_over_time"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#openeo.rest.imagecollectionclient.ImageCollectionClient.reduce_tiles_over_time" title="Permalink to this definition">¶</a></dt>
+<dd><p>Applies a user defined function to a timeseries of tiles. The size of the tile is backend specific, and can be limited to one pixel.
+The function should reduce the given timeseries into a single (multiband) tile.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>code</strong> (<code class="docutils literal"><span class="pre">str</span></code>) – The UDF code, compatible with the given runtime and version</li>
+<li><strong>runtime</strong> (<code class="docutils literal"><span class="pre">str</span></code>) – The UDF runtime</li>
+<li><strong>version</strong> (<code class="docutils literal"><span class="pre">str</span></code>) – The UDF runtime version</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first last"></p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="openeo.rest.imagecollectionclient.ImageCollectionClient.send_job">
+<code class="descname">send_job</code><span class="sig-paren">(</span><em>out_format=None</em>, <em>**format_options</em><span class="sig-paren">)</span> &#x2192; openeo.job.Job<a class="reference internal" href="_modules/openeo/rest/imagecollectionclient.html#ImageCollectionClient.send_job"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#openeo.rest.imagecollectionclient.ImageCollectionClient.send_job" title="Permalink to this definition">¶</a></dt>
+<dd><p>Sends a job to the backend and returns a ClientJob instance.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><p class="first"><code class="xref py py-class docutils literal"><span class="pre">Job</span></code></p>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>out_format</strong> – String Format of the job result.</li>
+<li><strong>format_options</strong> – String Parameters for the job result format</li>
+</ul>
+</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body"><p class="first last">status: ClientJob resulting job.</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="openeo.rest.imagecollectionclient.ImageCollectionClient.stretch_colors">
+<code class="descname">stretch_colors</code><span class="sig-paren">(</span><em>min</em>, <em>max</em><span class="sig-paren">)</span> &#x2192; openeo.imagecollection.ImageCollection<a class="reference internal" href="_modules/openeo/rest/imagecollectionclient.html#ImageCollectionClient.stretch_colors"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#openeo.rest.imagecollectionclient.ImageCollectionClient.stretch_colors" title="Permalink to this definition">¶</a></dt>
+<dd><p>Color stretching
+deprecated, use ‘linear_scale_range’ instead</p>
+<blockquote>
+<div><table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">param min:</th><td class="field-body">Minimum value</td>
+</tr>
+<tr class="field-even field"><th class="field-name">param max:</th><td class="field-body">Maximum value</td>
+</tr>
+</tbody>
+</table>
+<p>:return An ImageCollection instance</p>
+</div></blockquote>
+</dd></dl>
+
+<dl class="method">
+<dt id="openeo.rest.imagecollectionclient.ImageCollectionClient.subtract">
+<code class="descname">subtract</code><span class="sig-paren">(</span><em>other: typing.Union[openeo.imagecollection.ImageCollection, int, float]</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/openeo/rest/imagecollectionclient.html#ImageCollectionClient.subtract"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#openeo.rest.imagecollectionclient.ImageCollectionClient.subtract" title="Permalink to this definition">¶</a></dt>
+<dd><p>Subtract other from this datacube, so the result is: this - other
+The number of bands in both data cubes has to be the same.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>other</strong> – </td>
+</tr>
+<tr class="field-even field"><th class="field-name" colspan="2">Return ImageCollection:</th></tr>
+<tr class="field-even field"><td>&#160;</td><td class="field-body">this - other</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="openeo.rest.imagecollectionclient.ImageCollectionClient.timeseries">
+<code class="descname">timeseries</code><span class="sig-paren">(</span><em>x</em>, <em>y</em>, <em>srs='EPSG:4326'</em><span class="sig-paren">)</span> &#x2192; typing.Dict<a class="reference internal" href="_modules/openeo/rest/imagecollectionclient.html#ImageCollectionClient.timeseries"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#openeo.rest.imagecollectionclient.ImageCollectionClient.timeseries" title="Permalink to this definition">¶</a></dt>
+<dd><p>Extract a time series for the given point location.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>x</strong> – The x coordinate of the point</li>
+<li><strong>y</strong> – The y coordinate of the point</li>
+<li><strong>srs</strong> (<code class="docutils literal"><span class="pre">str</span></code>) – The spatial reference system of the coordinates, by default</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+<p>this is ‘EPSG:4326’, where x=longitude and y=latitude.
+:return: Dict: A timeseries</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="openeo.rest.imagecollectionclient.ImageCollectionClient.to_graphviz">
+<code class="descname">to_graphviz</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/openeo/rest/imagecollectionclient.html#ImageCollectionClient.to_graphviz"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#openeo.rest.imagecollectionclient.ImageCollectionClient.to_graphviz" title="Permalink to this definition">¶</a></dt>
+<dd><p>Build a graphviz DiGraph from the process graph
+:return:</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="openeo.rest.imagecollectionclient.ImageCollectionClient.zonal_statistics">
+<code class="descname">zonal_statistics</code><span class="sig-paren">(</span><em>regions</em>, <em>func</em>, <em>scale=1000</em>, <em>interval='day'</em><span class="sig-paren">)</span> &#x2192; openeo.imagecollection.ImageCollection<a class="reference internal" href="_modules/openeo/rest/imagecollectionclient.html#ImageCollectionClient.zonal_statistics"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#openeo.rest.imagecollectionclient.ImageCollectionClient.zonal_statistics" title="Permalink to this definition">¶</a></dt>
+<dd><p>Calculates statistics for each zone specified in a file.
+:type interval: <code class="docutils literal"><span class="pre">str</span></code>
+:type scale: <code class="docutils literal"><span class="pre">int</span></code>
+:param regions: GeoJSON or a path to a GeoJSON file containing the</p>
+<blockquote>
+<div>regions. For paths you must specify the path to a
+user-uploaded file without the user id in the path.</div></blockquote>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>func</strong> – Statistical function to calculate for the specified
+zones. example values: min, max, mean, median, mode</li>
+<li><strong>scale</strong> – A nominal scale in meters of the projection to work
+in. Defaults to 1000.</li>
+<li><strong>interval</strong> – Interval to group the time series. Allowed values:
+day, wee, month, year. Defaults to day.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+<p>:return An ImageCollection instance</p>
+</dd></dl>
+
+</dd></dl>
+
+<div class="toctree-wrapper compound">
+</div>
+</div>
+</div>
+<div class="section" id="indices-and-tables">
+<h1>Indices and tables<a class="headerlink" href="#indices-and-tables" title="Permalink to this headline">¶</a></h1>
+<ul class="simple">
+<li><a class="reference internal" href="genindex.html"><span class="std std-ref">Index</span></a></li>
+<li><a class="reference internal" href="py-modindex.html"><span class="std std-ref">Module Index</span></a></li>
+<li><a class="reference internal" href="search.html"><span class="std std-ref">Search Page</span></a></li>
+</ul>
+</div>
+
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="#">openeo</a></h1>
+
+
+
+
+
+
+<p>
+<iframe src="https://ghbtns.com/github-btn.html?user=Open-EO&repo=openeo-python-client&type=watch&count=true&size=large&v=2"
+  allowtransparency="true" frameborder="0" scrolling="0" width="200px" height="35px"></iframe>
+</p>
+
+
+
+
+
+    
+
+<p>
+<a class="badge" href="https://travis-ci.org/Open-EO/openeo-python-client">
+    <img
+        alt="https://secure.travis-ci.org/Open-EO/openeo-python-client.svg?branch=master"
+        src="https://secure.travis-ci.org/Open-EO/openeo-python-client.svg?branch=master"
+    />
+</a>
+</p>
+
+
+
+  <h3><a href="#">Table Of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">Open-EO Client</a></li>
+<li><a class="reference internal" href="#module-openeo">Usage</a><ul>
+<li><a class="reference internal" href="#example-simple-band-math">Example: Simple band math</a><ul>
+<li><a class="reference internal" href="#example-applying-a-mask">Example: Applying a mask</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#example-smoothing-timeseries-with-a-user-defined-function-udf">Example: Smoothing timeseries with a user defined function (UDF)</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#api">API</a><ul>
+<li><a class="reference internal" href="#high-level-interface">High level Interface</a></li>
+<li><a class="reference internal" href="#openeo-rest-connection">openeo.rest.connection</a></li>
+<li><a class="reference internal" href="#openeo-rest-imagecollectionclient">openeo.rest.imagecollectionclient</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#indices-and-tables">Indices and tables</a></li>
+</ul>
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="#">Documentation overview</a><ul>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <div><input type="text" name="q" /></div>
+      <div><input type="submit" value="Go" /></div>
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script><!-- Alabaster (krTheme++) Hacks -->
+
+<!-- CSS Adjustments from requests: https://github.com/kennethreitz/requests/blob/master/docs/_templates/hacks.html-->
+<style type="text/css">
+  /* Rezzy requires precise alignment. */
+  img.logo {margin-left: -20px!important;}
+  /* "Quick Search" should be capitalized. */
+  div#searchbox h3 {text-transform: capitalize;}
+  /* Make the document a little wider, less code is cut-off. */
+  div.document {width: 1008px;}
+  /* Much-improved spacing around code blocks. */
+  div.highlight pre {padding: 11px 14px;}
+  /* Remain Responsive! */
+  @media screen and (max-width: 1008px) {
+    div.sphinxsidebar {display: none;}
+    div.document {width: 100%!important;}
+    /* Have code blocks escape the document right-margin. */
+    div.highlight pre {margin-right: -30px;}
+  }
+</style>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2017, Jeroen Dries.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.6.7</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
+      
+      |
+      <a href="_sources/index.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+    <a href="https://github.com/Open-EO/openeo-python-client" class="github">
+        <img style="position: absolute; top: 0; right: 0; border: 0;" src="https://s3.amazonaws.com/github/ribbons/forkme_right_darkblue_121621.png" alt="Fork me on GitHub"  class="github"/>
+    </a>
+    
+
+    
+  </body>
+</html>

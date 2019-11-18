@@ -1,0 +1,670 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>openeo.rest.connection &#8212; openeo 0.0.1 documentation</title>
+    <link rel="stylesheet" href="../../../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '0.0.1',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+   
+  <link rel="stylesheet" href="../../../_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head>
+  <body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <h1>Source code for openeo.rest.connection</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">This module provides a Connection object to manage and persist settings when interacting with the OpenEO API.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">import</span> <span class="nn">logging</span>
+<span class="kn">import</span> <span class="nn">pathlib</span>
+<span class="kn">import</span> <span class="nn">shutil</span>
+<span class="kn">from</span> <span class="nn">typing</span> <span class="k">import</span> <span class="n">Dict</span><span class="p">,</span> <span class="n">List</span>
+<span class="kn">from</span> <span class="nn">urllib.parse</span> <span class="k">import</span> <span class="n">urljoin</span>
+
+<span class="kn">import</span> <span class="nn">requests</span>
+<span class="kn">from</span> <span class="nn">deprecated</span> <span class="k">import</span> <span class="n">deprecated</span>
+<span class="kn">from</span> <span class="nn">requests</span> <span class="k">import</span> <span class="n">Response</span>
+<span class="kn">from</span> <span class="nn">requests.auth</span> <span class="k">import</span> <span class="n">HTTPBasicAuth</span><span class="p">,</span> <span class="n">AuthBase</span>
+
+<span class="kn">import</span> <span class="nn">openeo</span>
+<span class="kn">from</span> <span class="nn">openeo.capabilities</span> <span class="k">import</span> <span class="n">Capabilities</span><span class="p">,</span> <span class="n">ApiVersionException</span><span class="p">,</span> <span class="n">ComparableVersion</span>
+<span class="kn">from</span> <span class="nn">openeo.imagecollection</span> <span class="k">import</span> <span class="n">CollectionMetadata</span>
+<span class="kn">from</span> <span class="nn">openeo.rest.auth.auth</span> <span class="k">import</span> <span class="n">NullAuth</span><span class="p">,</span> <span class="n">BearerAuth</span>
+<span class="kn">from</span> <span class="nn">openeo.rest.imagecollectionclient</span> <span class="k">import</span> <span class="n">ImageCollectionClient</span>
+<span class="kn">from</span> <span class="nn">openeo.rest.job</span> <span class="k">import</span> <span class="n">RESTJob</span>
+<span class="kn">from</span> <span class="nn">openeo.rest.rest_capabilities</span> <span class="k">import</span> <span class="n">RESTCapabilities</span>
+
+<span class="n">_log</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">url_join</span><span class="p">(</span><span class="n">root_url</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Join a base url and sub path properly.&quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">urljoin</span><span class="p">(</span><span class="n">root_url</span><span class="o">.</span><span class="n">rstrip</span><span class="p">(</span><span class="s1">&#39;/&#39;</span><span class="p">)</span> <span class="o">+</span> <span class="s1">&#39;/&#39;</span><span class="p">,</span> <span class="n">path</span><span class="o">.</span><span class="n">lstrip</span><span class="p">(</span><span class="s1">&#39;/&#39;</span><span class="p">))</span>
+
+
+<span class="k">class</span> <span class="nc">OpenEoApiError</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Error returned by OpenEO API according to https://open-eo.github.io/openeo-api/errors/</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">http_status_code</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+                 <span class="n">code</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;unknown&#39;</span><span class="p">,</span> <span class="n">message</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;unknown error&#39;</span><span class="p">,</span> <span class="nb">id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">url</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">http_status_code</span> <span class="o">=</span> <span class="n">http_status_code</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">code</span> <span class="o">=</span> <span class="n">code</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">message</span> <span class="o">=</span> <span class="n">message</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">id</span> <span class="o">=</span> <span class="nb">id</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">url</span> <span class="o">=</span> <span class="n">url</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="s2">&quot;[</span><span class="si">{s}</span><span class="s2">] </span><span class="si">{c}</span><span class="s2">: </span><span class="si">{m}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">s</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">http_status_code</span><span class="p">,</span> <span class="n">c</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">code</span><span class="p">,</span> <span class="n">m</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">message</span><span class="p">))</span>
+
+
+<span class="k">class</span> <span class="nc">RestApiConnection</span><span class="p">:</span>
+    <span class="sd">&quot;&quot;&quot;Base connection class implementing generic REST API request functionality&quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">root_url</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">auth</span><span class="p">:</span> <span class="n">AuthBase</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">session</span><span class="p">:</span> <span class="n">requests</span><span class="o">.</span><span class="n">Session</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_root_url</span> <span class="o">=</span> <span class="n">root_url</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">session</span> <span class="o">=</span> <span class="n">session</span> <span class="ow">or</span> <span class="n">requests</span><span class="o">.</span><span class="n">Session</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">auth</span> <span class="o">=</span> <span class="n">auth</span> <span class="ow">or</span> <span class="n">NullAuth</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">default_headers</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">&quot;User-Agent&quot;</span><span class="p">:</span> <span class="s2">&quot;openeo-python-client/</span><span class="si">{v}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">v</span><span class="o">=</span><span class="n">openeo</span><span class="o">.</span><span class="n">client_version</span><span class="p">())</span>
+        <span class="p">}</span>
+
+    <span class="k">def</span> <span class="nf">build_url</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">url_join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_root_url</span><span class="p">,</span> <span class="n">path</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_merged_headers</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">headers</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+        <span class="sd">&quot;&quot;&quot;Merge default headers with given headers&quot;&quot;&quot;</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">default_headers</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">headers</span><span class="p">:</span>
+            <span class="n">result</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">headers</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">result</span>
+
+    <span class="k">def</span> <span class="nf">request</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">method</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">headers</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">auth</span><span class="p">:</span> <span class="n">AuthBase</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">check_status</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Generic request send&quot;&quot;&quot;</span>
+        <span class="n">resp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">request</span><span class="p">(</span>
+            <span class="n">method</span><span class="o">=</span><span class="n">method</span><span class="p">,</span>
+            <span class="n">url</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">build_url</span><span class="p">(</span><span class="n">path</span><span class="p">),</span>
+            <span class="n">headers</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_merged_headers</span><span class="p">(</span><span class="n">headers</span><span class="p">),</span>
+            <span class="n">auth</span><span class="o">=</span><span class="n">auth</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">auth</span><span class="p">,</span>
+            <span class="o">**</span><span class="n">kwargs</span>
+        <span class="p">)</span>
+        <span class="k">if</span> <span class="n">check_status</span><span class="p">:</span>
+            <span class="c1"># TODO: option to specify the list/range of expected status codes?</span>
+            <span class="k">if</span> <span class="n">resp</span><span class="o">.</span><span class="n">status_code</span> <span class="o">&gt;=</span> <span class="mi">400</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_raise_api_error</span><span class="p">(</span><span class="n">resp</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">resp</span>
+
+    <span class="k">def</span> <span class="nf">_raise_api_error</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">response</span><span class="p">:</span> <span class="n">requests</span><span class="o">.</span><span class="n">Response</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Convert API error response to Python exception&quot;&quot;&quot;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="c1"># Try parsing the error info according to spec and wrap it in an exception.</span>
+            <span class="n">info</span> <span class="o">=</span> <span class="n">response</span><span class="o">.</span><span class="n">json</span><span class="p">()</span>
+            <span class="n">exception</span> <span class="o">=</span> <span class="n">OpenEoApiError</span><span class="p">(</span>
+                <span class="n">http_status_code</span><span class="o">=</span><span class="n">response</span><span class="o">.</span><span class="n">status_code</span><span class="p">,</span>
+                <span class="n">code</span><span class="o">=</span><span class="n">info</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;code&quot;</span><span class="p">,</span> <span class="s2">&quot;unknown&quot;</span><span class="p">),</span>
+                <span class="n">message</span><span class="o">=</span><span class="n">info</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;message&quot;</span><span class="p">,</span> <span class="s2">&quot;unknown error&quot;</span><span class="p">),</span>
+                <span class="nb">id</span><span class="o">=</span><span class="n">info</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;id&quot;</span><span class="p">),</span>
+                <span class="n">url</span><span class="o">=</span><span class="n">info</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;url&quot;</span><span class="p">),</span>
+            <span class="p">)</span>
+        <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+            <span class="c1"># When parsing went wrong: give minimal information.</span>
+            <span class="n">exception</span> <span class="o">=</span> <span class="n">OpenEoApiError</span><span class="p">(</span><span class="n">http_status_code</span><span class="o">=</span><span class="n">response</span><span class="o">.</span><span class="n">status_code</span><span class="p">,</span> <span class="n">message</span><span class="o">=</span><span class="n">response</span><span class="o">.</span><span class="n">text</span><span class="p">)</span>
+        <span class="k">raise</span> <span class="n">exception</span>
+
+    <span class="k">def</span> <span class="nf">get</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">,</span> <span class="n">stream</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">auth</span><span class="p">:</span> <span class="n">AuthBase</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Response</span><span class="p">:</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Do GET request to REST API.</span>
+
+<span class="sd">        :param path: API path (without root url)</span>
+<span class="sd">        :param stream: True if the get request should be streamed, else False</span>
+<span class="sd">        :param auth: optional custom authentication to use instead of the default one</span>
+<span class="sd">        :return: response: Response</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">request</span><span class="p">(</span><span class="s2">&quot;get&quot;</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="n">path</span><span class="p">,</span> <span class="n">stream</span><span class="o">=</span><span class="n">stream</span><span class="p">,</span> <span class="n">auth</span><span class="o">=</span><span class="n">auth</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">post</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">,</span> <span class="n">json</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Response</span><span class="p">:</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Do POST request to REST API.</span>
+
+<span class="sd">        :param path: API path (without root url)</span>
+<span class="sd">        :param json: Data (as dictionary) to be posted with JSON encoding)</span>
+<span class="sd">        :return: response: Response</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">request</span><span class="p">(</span><span class="s2">&quot;post&quot;</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="n">path</span><span class="p">,</span> <span class="n">json</span><span class="o">=</span><span class="n">json</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">delete</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Response</span><span class="p">:</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Do DELETE request to REST API.</span>
+
+<span class="sd">        :param path: API path (without root url)</span>
+<span class="sd">        :return: response: Response</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">request</span><span class="p">(</span><span class="s2">&quot;delete&quot;</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="n">path</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">patch</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Response</span><span class="p">:</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Do PATCH request to REST API.</span>
+
+<span class="sd">        :param path: API path (without root url)</span>
+<span class="sd">        :return: response: Response</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">request</span><span class="p">(</span><span class="s2">&quot;patch&quot;</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="n">path</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">put</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">,</span> <span class="n">headers</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Response</span><span class="p">:</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Do PUT request to REST API.</span>
+
+<span class="sd">        :param path: API path (without root url)</span>
+<span class="sd">        :param headers: headers that gets added to the request.</span>
+<span class="sd">        :param data: data that gets added to the request.</span>
+<span class="sd">        :return: response: Response</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">request</span><span class="p">(</span><span class="s2">&quot;put&quot;</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="n">path</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="n">data</span><span class="p">,</span> <span class="n">headers</span><span class="o">=</span><span class="n">headers</span><span class="p">)</span>
+
+
+<span class="k">class</span> <span class="nc">Connection</span><span class="p">(</span><span class="n">RestApiConnection</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Connection to an openEO backend.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">_MINIMUM_API_VERSION</span> <span class="o">=</span> <span class="n">ComparableVersion</span><span class="p">(</span><span class="s2">&quot;0.4.0&quot;</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">url</span><span class="p">,</span> <span class="n">auth</span><span class="p">:</span> <span class="n">AuthBase</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">session</span><span class="p">:</span> <span class="n">requests</span><span class="o">.</span><span class="n">Session</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Constructor of Connection, authenticates user.</span>
+<span class="sd">        :param url: String Backend root url</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">root_url</span><span class="o">=</span><span class="n">url</span><span class="p">,</span> <span class="n">auth</span><span class="o">=</span><span class="n">auth</span><span class="p">,</span> <span class="n">session</span><span class="o">=</span><span class="n">session</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_cached_capabilities</span> <span class="o">=</span> <span class="kc">None</span>
+
+        <span class="c1"># Initial API version check.</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_api_version</span><span class="o">.</span><span class="n">below</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_MINIMUM_API_VERSION</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="n">ApiVersionException</span><span class="p">(</span><span class="s2">&quot;OpenEO API version should be at least </span><span class="si">{m!s}</span><span class="s2">, but got </span><span class="si">{v!s}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                <span class="n">m</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_MINIMUM_API_VERSION</span><span class="p">,</span> <span class="n">v</span><span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_api_version</span><span class="p">)</span>
+            <span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">authenticate_basic</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">username</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">password</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s1">&#39;Connection&#39;</span><span class="p">:</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Authenticate a user to the backend using basic username and password.</span>
+<span class="sd">        :param username: User name</span>
+<span class="sd">        :param password: User passphrase</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">resp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get</span><span class="p">(</span>
+            <span class="s1">&#39;/credentials/basic&#39;</span><span class="p">,</span>
+            <span class="c1"># /credentials/basic is the only endpoint that expects a Basic HTTP auth</span>
+            <span class="n">auth</span><span class="o">=</span><span class="n">HTTPBasicAuth</span><span class="p">(</span><span class="n">username</span><span class="p">,</span> <span class="n">password</span><span class="p">)</span>
+        <span class="p">)</span><span class="o">.</span><span class="n">json</span><span class="p">()</span>
+        <span class="c1"># Switch to bearer based authentication in further requests.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">auth</span> <span class="o">=</span> <span class="n">BearerAuth</span><span class="p">(</span><span class="n">bearer</span><span class="o">=</span><span class="n">resp</span><span class="p">[</span><span class="s2">&quot;access_token&quot;</span><span class="p">])</span>
+        <span class="k">return</span> <span class="bp">self</span>
+
+    <span class="k">def</span> <span class="nf">authenticate_OIDC</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">client_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">webbrowser_open</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">timeout</span><span class="o">=</span><span class="mi">120</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s1">&#39;Connection&#39;</span><span class="p">:</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Authenticates a user to the backend using OpenID Connect.</span>
+
+<span class="sd">        :param client_id: Client id to use for OpenID Connect authentication</span>
+<span class="sd">        :param webbrowser_open: optional handler for the initial OAuth authentication request</span>
+<span class="sd">            (opens a webbrowser by default)</span>
+<span class="sd">        :param timeout: number of seconds after which to abort the authentication procedure</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># Local import to avoid importing the whole OpenID Connect dependency chain. TODO: just do global import?</span>
+        <span class="kn">from</span> <span class="nn">openeo.rest.auth.oidc</span> <span class="k">import</span> <span class="n">OidcAuthCodePkceAuthenticator</span>
+
+        <span class="c1"># Per spec: &#39;/credentials/oidc&#39; will redirect to  OpenID Connect discovery document</span>
+        <span class="n">oidc_discovery_url</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">build_url</span><span class="p">(</span><span class="s1">&#39;/credentials/oidc&#39;</span><span class="p">)</span>
+        <span class="n">authenticator</span> <span class="o">=</span> <span class="n">OidcAuthCodePkceAuthenticator</span><span class="p">(</span>
+            <span class="n">client_id</span><span class="o">=</span><span class="n">client_id</span><span class="p">,</span>
+            <span class="n">oidc_discovery_url</span><span class="o">=</span><span class="n">oidc_discovery_url</span><span class="p">,</span>
+            <span class="n">webbrowser_open</span><span class="o">=</span><span class="n">webbrowser_open</span><span class="p">,</span>
+            <span class="n">timeout</span><span class="o">=</span><span class="n">timeout</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="c1"># Do the Oauth/OpenID Connect flow and use the access token as bearer token.</span>
+        <span class="n">tokens</span> <span class="o">=</span> <span class="n">authenticator</span><span class="o">.</span><span class="n">get_tokens</span><span class="p">()</span>
+        <span class="c1"># TODO: ability to refresh the token when expired?</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">auth</span> <span class="o">=</span> <span class="n">BearerAuth</span><span class="p">(</span><span class="n">bearer</span><span class="o">=</span><span class="n">tokens</span><span class="o">.</span><span class="n">access_token</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span>
+
+    <span class="k">def</span> <span class="nf">describe_account</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Describes the currently authenticated user account.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;/me&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">json</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">user_jobs</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Loads all jobs of the current user.</span>
+<span class="sd">        :return: jobs: Dict All jobs of the user</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;/jobs&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">json</span><span class="p">()[</span><span class="s2">&quot;jobs&quot;</span><span class="p">]</span>
+
+    <span class="k">def</span> <span class="nf">list_collections</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="nb">dict</span><span class="p">]:</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Loads all available imagecollections types.</span>
+<span class="sd">        :return: list of collection meta data dictionaries</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;/collections&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">json</span><span class="p">()[</span><span class="s2">&quot;collections&quot;</span><span class="p">]</span>
+
+    <span class="k">def</span> <span class="nf">list_collection_ids</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Get list of all collection ids</span>
+<span class="sd">        :return: list of collection ids</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">collection</span><span class="p">[</span><span class="s1">&#39;id&#39;</span><span class="p">]</span> <span class="k">for</span> <span class="n">collection</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">list_collections</span><span class="p">()</span> <span class="k">if</span> <span class="s1">&#39;id&#39;</span> <span class="ow">in</span> <span class="n">collection</span><span class="p">]</span>
+
+    <span class="k">def</span> <span class="nf">capabilities</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s1">&#39;Capabilities&#39;</span><span class="p">:</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Loads all available capabilities.</span>
+
+<span class="sd">        :return: data_dict: Dict All available data types</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cached_capabilities</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_cached_capabilities</span> <span class="o">=</span> <span class="n">RESTCapabilities</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;/&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">json</span><span class="p">())</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cached_capabilities</span>
+
+    <span class="nd">@deprecated</span><span class="p">(</span><span class="s2">&quot;Use &#39;list_output_formats&#39; instead&quot;</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">list_file_types</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">list_output_formats</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">list_output_formats</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Loads all available output formats.</span>
+<span class="sd">        :return: data_dict: Dict All available output formats</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;/output_formats&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">json</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">list_service_types</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Loads all available service types.</span>
+<span class="sd">        :return: data_dict: Dict All available service types</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;/service_types&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">json</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">list_services</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Loads all available services of the authenticated user.</span>
+<span class="sd">        :return: data_dict: Dict All available service types</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1">#TODO return service objects</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;/services&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">json</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">describe_collection</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+        <span class="c1"># TODO: Maybe create some kind of Data class.</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Loads detailed information of a specific image collection.</span>
+<span class="sd">        :param name: String Id of the collection</span>
+<span class="sd">        :return: data_dict: Dict Detailed information about the collection</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span>  <span class="bp">self</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;/collections/</span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">name</span><span class="p">))</span><span class="o">.</span><span class="n">json</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">collection_metadata</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">CollectionMetadata</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">CollectionMetadata</span><span class="p">(</span><span class="n">metadata</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">describe_collection</span><span class="p">(</span><span class="n">name</span><span class="p">))</span>
+
+    <span class="k">def</span> <span class="nf">list_processes</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+        <span class="c1"># TODO: Maybe format the result dictionary so that the process_id is the key of the dictionary.</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Loads all available processes of the back end.</span>
+<span class="sd">        :return: processes_dict: Dict All available processes of the back end.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;/processes&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">json</span><span class="p">()[</span><span class="s2">&quot;processes&quot;</span><span class="p">]</span>
+
+    <span class="k">def</span> <span class="nf">list_jobs</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+        <span class="c1"># TODO: Maybe format the result so that there get Job classes returned.</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Lists all jobs of the authenticated user.</span>
+<span class="sd">        :return: job_list: Dict of all jobs of the user.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;/jobs&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">json</span><span class="p">()[</span><span class="s2">&quot;jobs&quot;</span><span class="p">]</span>
+
+    <span class="k">def</span> <span class="nf">validate_processgraph</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">process_graph</span><span class="p">):</span>
+        <span class="c1"># Endpoint: POST /validate</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">list_processgraphs</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">process_graph</span><span class="p">):</span>
+        <span class="c1"># Endpoint: GET /process_graphs</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">()</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">_api_version</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ComparableVersion</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">capabilities</span><span class="p">()</span><span class="o">.</span><span class="n">api_version_check</span>
+
+    <span class="k">def</span> <span class="nf">load_collection</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">collection_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ImageCollectionClient</span><span class="p">:</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Load an image collection by collection id</span>
+
+<span class="sd">        see :py:meth:`openeo.rest.imagecollectionclient.ImageCollectionClient.load_collection`</span>
+<span class="sd">        for available arguments.</span>
+
+<span class="sd">        :param collection_id: image collection identifier (string)</span>
+<span class="sd">        :return: ImageCollectionClient</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">ImageCollectionClient</span><span class="o">.</span><span class="n">load_collection</span><span class="p">(</span><span class="n">collection_id</span><span class="o">=</span><span class="n">collection_id</span><span class="p">,</span> <span class="n">session</span><span class="o">=</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+    <span class="c1"># Legacy alias.</span>
+    <span class="n">imagecollection</span> <span class="o">=</span> <span class="n">load_collection</span>
+
+    <span class="k">def</span> <span class="nf">point_timeseries</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">graph</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">srs</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+        <span class="sd">&quot;&quot;&quot;Compute a timeseries for a given point location.&quot;&quot;&quot;</span>
+        <span class="n">r</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s2">&quot;/timeseries/point?x=</span><span class="si">{x}</span><span class="s2">&amp;y=</span><span class="si">{y}</span><span class="s2">&amp;srs=</span><span class="si">{s}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">x</span><span class="o">=</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="o">=</span><span class="n">y</span><span class="p">,</span> <span class="n">s</span><span class="o">=</span><span class="n">srs</span><span class="p">),</span> <span class="n">graph</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">r</span><span class="o">.</span><span class="n">json</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">create_service</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">graph</span><span class="p">,</span> <span class="nb">type</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">kwargs</span><span class="p">[</span><span class="s2">&quot;process_graph&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">graph</span>
+        <span class="n">kwargs</span><span class="p">[</span><span class="s2">&quot;type&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">type</span>
+        <span class="n">response</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s2">&quot;/services&quot;</span><span class="p">,</span> <span class="n">kwargs</span><span class="p">)</span>
+        <span class="k">return</span> <span class="p">{</span>
+            <span class="s1">&#39;url&#39;</span><span class="p">:</span> <span class="n">response</span><span class="o">.</span><span class="n">headers</span><span class="p">[</span><span class="s1">&#39;Location&#39;</span><span class="p">],</span>
+            <span class="s1">&#39;service_id&#39;</span><span class="p">:</span> <span class="n">response</span><span class="o">.</span><span class="n">headers</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;OpenEO-Identifier&quot;</span><span class="p">),</span>
+        <span class="p">}</span>
+
+    <span class="k">def</span> <span class="nf">remove_service</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">service_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Stop and remove a secondary web service.</span>
+<span class="sd">        :param service_id: service identifier</span>
+<span class="sd">        :return:</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">response</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">delete</span><span class="p">(</span><span class="s1">&#39;/services/&#39;</span> <span class="o">+</span> <span class="n">service_id</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">job_results</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">job_id</span><span class="p">):</span>
+        <span class="n">response</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;/jobs/</span><span class="si">{}</span><span class="s2">/results&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">job_id</span><span class="p">))</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">parse_json_response</span><span class="p">(</span><span class="n">response</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">list_files</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Lists all files that the logged in user uploaded.</span>
+<span class="sd">        :return: file_list: List of the user uploaded files.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;/files&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">json</span><span class="p">()[</span><span class="s1">&#39;files&#39;</span><span class="p">]</span>
+
+    <span class="k">def</span> <span class="nf">create_file</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Creates virtual file</span>
+<span class="sd">        :return: file object.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># No endpoint just returns a file object.</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">()</span>
+
+    <span class="c1"># TODO: Maybe rename to execute and merge with execute().</span>
+    <span class="k">def</span> <span class="nf">download</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">graph</span><span class="p">,</span> <span class="n">outputfile</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Downloads the result of a process graph synchronously, and save the result to the given file.</span>
+<span class="sd">        This method is useful to export binary content such as images. For json content, the execute method is recommended.</span>
+
+<span class="sd">        :param graph: Dict representing a process graph</span>
+<span class="sd">        :param outputfile: output file</span>
+<span class="sd">        :param format_options: formating options</span>
+<span class="sd">        :return: job_id: String</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">request</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;process_graph&quot;</span><span class="p">:</span> <span class="n">graph</span><span class="p">}</span>
+        <span class="n">download_url</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">build_url</span><span class="p">(</span><span class="s2">&quot;/result&quot;</span><span class="p">)</span>
+        <span class="n">r</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="n">download_url</span><span class="p">,</span> <span class="n">json</span><span class="o">=</span><span class="n">request</span><span class="p">,</span> <span class="n">stream</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">timeout</span><span class="o">=</span><span class="mi">1000</span><span class="p">)</span>
+        <span class="k">with</span> <span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span><span class="p">(</span><span class="n">outputfile</span><span class="p">)</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="n">mode</span><span class="o">=</span><span class="s2">&quot;wb&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+            <span class="n">shutil</span><span class="o">.</span><span class="n">copyfileobj</span><span class="p">(</span><span class="n">r</span><span class="o">.</span><span class="n">raw</span><span class="p">,</span> <span class="n">f</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">execute</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">process_graph</span><span class="p">,</span> <span class="n">output_format</span><span class="p">,</span> <span class="n">output_parameters</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">budget</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Execute a process graph synchronously.</span>
+<span class="sd">        :param process_graph: Dict representing a process graph</span>
+<span class="sd">        :param output_format: String Output format of the execution</span>
+<span class="sd">        :param output_parameters: Dict of additional output parameters</span>
+<span class="sd">        :param budget: Budget</span>
+<span class="sd">        :return: job_id: String</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># TODO: add output_format to execution</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="n">path</span><span class="o">=</span><span class="s2">&quot;/result&quot;</span><span class="p">,</span> <span class="n">json</span><span class="o">=</span><span class="n">process_graph</span><span class="p">)</span><span class="o">.</span><span class="n">json</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">create_job</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">process_graph</span><span class="p">:</span><span class="n">Dict</span><span class="p">,</span> <span class="n">output_format</span><span class="p">:</span><span class="nb">str</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">output_parameters</span><span class="p">:</span><span class="n">Dict</span><span class="o">=</span><span class="p">{},</span>
+                   <span class="n">title</span><span class="p">:</span><span class="nb">str</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">description</span><span class="p">:</span><span class="nb">str</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">plan</span><span class="p">:</span><span class="nb">str</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">budget</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                   <span class="n">additional</span><span class="p">:</span><span class="n">Dict</span><span class="o">=</span><span class="p">{}):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Posts a job to the back end.</span>
+<span class="sd">        :param process_graph: String data of the job (e.g. process graph)</span>
+<span class="sd">        :param output_format: String Output format of the execution - DEPRECATED in 0.4.0</span>
+<span class="sd">        :param output_parameters: Dict of additional output parameters - DEPRECATED in 0.4.0</span>
+<span class="sd">        :param title: String title of the job</span>
+<span class="sd">        :param description: String description of the job</span>
+<span class="sd">        :param budget: Budget</span>
+<span class="sd">        :return: job_id: String Job id of the new created job</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">process_graph</span> <span class="o">=</span> <span class="p">{</span>
+             <span class="s2">&quot;process_graph&quot;</span><span class="p">:</span> <span class="n">process_graph</span><span class="p">,</span>
+             <span class="s2">&quot;title&quot;</span><span class="p">:</span> <span class="n">title</span><span class="p">,</span>
+             <span class="s2">&quot;description&quot;</span><span class="p">:</span> <span class="n">description</span><span class="p">,</span>
+             <span class="s2">&quot;plan&quot;</span><span class="p">:</span> <span class="n">plan</span><span class="p">,</span>
+             <span class="s2">&quot;budget&quot;</span><span class="p">:</span> <span class="n">budget</span>
+         <span class="p">}</span>
+
+        <span class="n">job_status</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s2">&quot;/jobs&quot;</span><span class="p">,</span> <span class="n">process_graph</span><span class="p">)</span>
+
+        <span class="n">job</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="n">job_status</span><span class="o">.</span><span class="n">status_code</span> <span class="o">==</span> <span class="mi">201</span><span class="p">:</span>
+            <span class="n">job_info</span> <span class="o">=</span> <span class="n">job_status</span><span class="o">.</span><span class="n">headers</span><span class="o">.</span><span class="n">_store</span>
+            <span class="k">if</span> <span class="s2">&quot;openeo-identifier&quot;</span> <span class="ow">in</span> <span class="n">job_info</span><span class="p">:</span>
+                <span class="n">job_id</span> <span class="o">=</span> <span class="n">job_info</span><span class="p">[</span><span class="s1">&#39;openeo-identifier&#39;</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span>
+                <span class="n">job</span> <span class="o">=</span> <span class="n">RESTJob</span><span class="p">(</span><span class="n">job_id</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="s2">&quot;location&quot;</span> <span class="ow">in</span> <span class="n">job_info</span><span class="p">:</span>
+                <span class="n">job_id</span> <span class="o">=</span> <span class="n">job_info</span><span class="p">[</span><span class="s1">&#39;location&#39;</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;/&quot;</span><span class="p">)[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+                <span class="n">job</span> <span class="o">=</span> <span class="n">RESTJob</span><span class="p">(</span><span class="n">job_id</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_handle_error_response</span><span class="p">(</span><span class="n">job_status</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">job</span>
+
+    <span class="k">def</span> <span class="nf">parse_json_response</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">response</span><span class="p">:</span> <span class="n">requests</span><span class="o">.</span><span class="n">Response</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Parses json response, if an error occurs it raises an Exception.</span>
+<span class="sd">        :param response: Response of a RESTful request</span>
+<span class="sd">        :return: response: JSON Response</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># TODO Deprecated: status handling is now in RestApiConnection</span>
+        <span class="k">if</span> <span class="n">response</span><span class="o">.</span><span class="n">status_code</span> <span class="o">==</span> <span class="mi">200</span> <span class="ow">or</span> <span class="n">response</span><span class="o">.</span><span class="n">status_code</span> <span class="o">==</span> <span class="mi">201</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">response</span><span class="o">.</span><span class="n">json</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_handle_error_response</span><span class="p">(</span><span class="n">response</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_handle_error_response</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">response</span><span class="p">):</span>
+        <span class="c1"># TODO replace this with `_raise_api_error`</span>
+        <span class="k">if</span> <span class="n">response</span><span class="o">.</span><span class="n">status_code</span> <span class="o">==</span> <span class="mi">502</span><span class="p">:</span>
+            <span class="kn">from</span> <span class="nn">requests.exceptions</span> <span class="k">import</span> <span class="n">ProxyError</span>
+            <span class="k">raise</span> <span class="n">ProxyError</span><span class="p">(</span><span class="s2">&quot;The proxy returned an error, this could be due to a timeout.&quot;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">message</span> <span class="o">=</span> <span class="kc">None</span>
+            <span class="k">if</span> <span class="n">response</span><span class="o">.</span><span class="n">headers</span><span class="p">[</span><span class="s1">&#39;Content-Type&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;application/json&#39;</span><span class="p">:</span>
+                <span class="n">message</span> <span class="o">=</span> <span class="n">response</span><span class="o">.</span><span class="n">json</span><span class="p">()</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;message&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">message</span><span class="p">:</span>
+                <span class="n">message</span> <span class="o">=</span> <span class="n">response</span><span class="o">.</span><span class="n">text</span>
+
+            <span class="k">raise</span> <span class="ne">ConnectionAbortedError</span><span class="p">(</span><span class="n">message</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">get_outputformats</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Loads all available output formats.</span>
+
+<span class="sd">        :return: data_dict: Dict All available output formats</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">load_disk_collection</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="nb">format</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">glob_pattern</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">options</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">=</span> <span class="p">{})</span> <span class="o">-&gt;</span> <span class="n">ImageCollectionClient</span><span class="p">:</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Loads image data from disk as an ImageCollection.</span>
+
+<span class="sd">        :param format: the file format, e.g. &#39;GTiff&#39;</span>
+<span class="sd">        :param glob_pattern: a glob pattern that matches the files to load from disk</span>
+<span class="sd">        :param options: options specific to the file format</span>
+<span class="sd">        :return: the data as an ImageCollection</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">ImageCollectionClient</span><span class="o">.</span><span class="n">load_disk_collection</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="nb">format</span><span class="p">,</span> <span class="n">glob_pattern</span><span class="p">,</span> <span class="o">**</span><span class="n">options</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="connect"><a class="viewcode-back" href="../../../index.html#openeo.connect">[docs]</a><span class="k">def</span> <span class="nf">connect</span><span class="p">(</span><span class="n">url</span><span class="p">,</span> <span class="n">auth_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">auth_options</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">=</span> <span class="p">{},</span> <span class="n">session</span><span class="p">:</span> <span class="n">requests</span><span class="o">.</span><span class="n">Session</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Connection</span><span class="p">:</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    This method is the entry point to OpenEO.</span>
+<span class="sd">    You typically create one connection object in your script or application</span>
+<span class="sd">    and re-use it for all calls to that backend.</span>
+
+<span class="sd">    If the backend requires authentication, you should can pass authentication data directly to this function</span>
+<span class="sd">    but it could be easier to authenticate as follows:</span>
+
+<span class="sd">        &gt;&gt;&gt; # For basic authentication</span>
+<span class="sd">        &gt;&gt;&gt; conn = connect(url).authenticate_basic(username=&quot;john&quot;, password=&quot;foo&quot;)</span>
+
+<span class="sd">        &gt;&gt;&gt; # For OpenID Connect authentication</span>
+<span class="sd">        &gt;&gt;&gt; conn = connect(url).authenticate_OIDC(client_id=&quot;myclient&quot;)</span>
+
+<span class="sd">    :param url: The http url of an OpenEO endpoint.</span>
+<span class="sd">    :param auth_type: Which authentication to use: None, &quot;basic&quot; or &quot;oidc&quot; (for OpenID Connect)</span>
+<span class="sd">    :param auth_options: Options/arguments specific to the authentication type</span>
+<span class="sd">    :rtype: openeo.connections.Connection</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">connection</span> <span class="o">=</span> <span class="n">Connection</span><span class="p">(</span><span class="n">url</span><span class="p">,</span> <span class="n">session</span><span class="o">=</span><span class="n">session</span><span class="p">)</span>
+    <span class="n">auth_type</span> <span class="o">=</span> <span class="n">auth_type</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">auth_type</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span> <span class="k">else</span> <span class="n">auth_type</span>
+    <span class="k">if</span> <span class="n">auth_type</span> <span class="ow">in</span> <span class="p">{</span><span class="kc">None</span><span class="p">,</span> <span class="s1">&#39;null&#39;</span><span class="p">,</span> <span class="s1">&#39;none&#39;</span><span class="p">}:</span>
+        <span class="k">pass</span>
+    <span class="k">elif</span> <span class="n">auth_type</span> <span class="o">==</span> <span class="s2">&quot;basic&quot;</span><span class="p">:</span>
+        <span class="n">connection</span><span class="o">.</span><span class="n">authenticate_basic</span><span class="p">(</span><span class="o">**</span><span class="n">auth_options</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">auth_type</span> <span class="ow">in</span> <span class="p">{</span><span class="s2">&quot;oidc&quot;</span><span class="p">,</span> <span class="s2">&quot;openid&quot;</span><span class="p">}:</span>
+        <span class="n">connection</span><span class="o">.</span><span class="n">authenticate_OIDC</span><span class="p">(</span><span class="o">**</span><span class="n">auth_options</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Unknown auth type </span><span class="si">{a!r}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">a</span><span class="o">=</span><span class="n">auth_type</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">connection</span></div>
+
+
+<span class="nd">@deprecated</span><span class="p">(</span><span class="s2">&quot;Use openeo.connect&quot;</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">session</span><span class="p">(</span><span class="n">userid</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">endpoint</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;https://openeo.org/openeo&quot;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Connection</span><span class="p">:</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Deprecated, use openeo.connect</span>
+<span class="sd">    This method is the entry point to OpenEO. You typically create one session object in your script or application, per back-end.</span>
+<span class="sd">    and re-use it for all calls to that backend.</span>
+<span class="sd">    If the backend requires authentication, you should set pass your credentials.</span>
+<span class="sd">    :param endpoint: The http url of an OpenEO endpoint.</span>
+<span class="sd">    :rtype: openeo.sessions.Session</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">connect</span><span class="p">(</span><span class="n">url</span><span class="o">=</span><span class="n">endpoint</span><span class="p">)</span>
+
+</pre></div>
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../../../index.html">openeo</a></h1>
+
+
+
+
+
+
+<p>
+<iframe src="https://ghbtns.com/github-btn.html?user=Open-EO&repo=openeo-python-client&type=watch&count=true&size=large&v=2"
+  allowtransparency="true" frameborder="0" scrolling="0" width="200px" height="35px"></iframe>
+</p>
+
+
+
+
+
+    
+
+<p>
+<a class="badge" href="https://travis-ci.org/Open-EO/openeo-python-client">
+    <img
+        alt="https://secure.travis-ci.org/Open-EO/openeo-python-client.svg?branch=master"
+        src="https://secure.travis-ci.org/Open-EO/openeo-python-client.svg?branch=master"
+    />
+</a>
+</p>
+
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../../index.html">Documentation overview</a><ul>
+  <li><a href="../../index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../search.html" method="get">
+      <div><input type="text" name="q" /></div>
+      <div><input type="submit" value="Go" /></div>
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script><!-- Alabaster (krTheme++) Hacks -->
+
+<!-- CSS Adjustments from requests: https://github.com/kennethreitz/requests/blob/master/docs/_templates/hacks.html-->
+<style type="text/css">
+  /* Rezzy requires precise alignment. */
+  img.logo {margin-left: -20px!important;}
+  /* "Quick Search" should be capitalized. */
+  div#searchbox h3 {text-transform: capitalize;}
+  /* Make the document a little wider, less code is cut-off. */
+  div.document {width: 1008px;}
+  /* Much-improved spacing around code blocks. */
+  div.highlight pre {padding: 11px 14px;}
+  /* Remain Responsive! */
+  @media screen and (max-width: 1008px) {
+    div.sphinxsidebar {display: none;}
+    div.document {width: 100%!important;}
+    /* Have code blocks escape the document right-margin. */
+    div.highlight pre {margin-right: -30px;}
+  }
+</style>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2017, Jeroen Dries.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.6.7</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
+      
+    </div>
+
+    
+    <a href="https://github.com/Open-EO/openeo-python-client" class="github">
+        <img style="position: absolute; top: 0; right: 0; border: 0;" src="https://s3.amazonaws.com/github/ribbons/forkme_right_darkblue_121621.png" alt="Fork me on GitHub"  class="github"/>
+    </a>
+    
+
+    
+  </body>
+</html>
